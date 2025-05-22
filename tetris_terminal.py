@@ -1,54 +1,95 @@
 # Visual interface in the terminal for tetris_engine.py
 import curses
 import time
+import tetris_engine
 from tetris_engine import tEngine
 
-TICK_RATE = 0.5  # seconds per drop
+TICK_RATE = 0.5  # seconds between automatic piece drops
+
+# Map piece types to colors
+PIECE_COLORS = {
+    'I': curses.COLOR_CYAN,
+    'O': curses.COLOR_YELLOW,
+    'T': curses.COLOR_MAGENTA,
+    'S': curses.COLOR_GREEN,
+    'Z': curses.COLOR_RED,
+    'J': curses.COLOR_BLUE,
+    'L': curses.COLOR_WHITE,  # substitude for orange
+}
+
+
+def init_colors():
+    curses.start_color()
+    curses.use_default_colors()
+    for i, (ptype, color) in enumerate(PIECE_COLORS.items(), start=1):
+        curses.init_pair(i, color, -1)  # foreground color, default background
+
+def get_color_pair(engine, x, y):
+    if y < 0 or y >= len(engine.board) or x < 0 or x >= len(engine.board[0]):
+        return 0
+    for piece_y, row in enumerate(engine.piece):
+        for piece_x, cell in enumerate(row):
+            if cell:
+                px = engine.piece_x + piece_x
+                py = engine.piece_y + piece_y
+                if px == x and py == y:
+                    return curses.color_pair(list(PIECE_COLORS.keys()).index(engine.piece_type) + 1)
+    if engine.board[y][x]:
+        # Try to guess piece type from lock pattern (optional)
+        return curses.color_pair(7)  # white for locked blocks
+    return 0
 
 def draw_board(stdscr, engine):
     stdscr.clear()
     board = [row[:] for row in engine.board]
 
-    # Overlay the falling piece
-    for y, row in enumerate(engine.piece):
-        for x, cell in enumerate(row):
-            if cell:
-                bx = engine.piece_x + x
-                by = engine.piece_y + y
-                if 0 <= by < len(board) and 0 <= bx < len(board[0]):
-                    board[by][bx] = 2  # 2 = active piece
+    height, width = stdscr.getmaxyx()
+    required_height = len(engine.board) + 5
+    required_width = tetris_engine.BOARD_WIDTH * 2 + 4
 
-    # Draw board
-    for y, row in enumerate(board):
-        stdscr.addstr(y, 0, "|")
-        for x, cell in enumerate(row):
-            if cell == 0:
-                stdscr.addstr("  ")
-            elif cell == 1:
-                stdscr.addstr("██")  # Locked block
+    if height < required_height or width < required_width:
+        stdscr.clear()
+        stdscr.addstr(0, 0, f"Terminal too small. Resize to at least {required_width}x{required_height}.")
+        stdscr.refresh()
+        return
+
+
+    # Draw the board
+    for y in range(len(board)):
+        stdscr.addstr(y, 0, "|")  # Left wall
+        for x in range(len(board[0])):
+            color = get_color_pair(engine, x, y)
+            cell = engine.board[y][x]
+            is_piece = False
+            for py, row in enumerate(engine.piece):
+                for px, pcell in enumerate(row):
+                    if pcell and engine.piece_x + px == x and engine.piece_y + py == y:
+                        is_piece = True
+            if cell or is_piece:
+                stdscr.addstr(y, 1 + x * 2, "██", color)
             else:
-                stdscr.addstr("[]")  # Active piece
-        stdscr.addstr("|\n")
+                stdscr.addstr(y, 1 + x * 2, "  ")
+        stdscr.addstr(y, 1 + tetris_engine.BOARD_WIDTH * 2, "|")  # Right wall
 
-    # Draw bottom border
+
     stdscr.addstr(len(board), 0, "+" + "--" * len(board[0]) + "+")
     stdscr.addstr(len(board) + 2, 0, f"Score: {engine.score}")
     if engine.game_over:
         stdscr.addstr(len(board) + 3, 0, "GAME OVER. Press Q to quit.")
-
     stdscr.refresh()
-
 
 def main(stdscr):
     curses.curs_set(0)
     stdscr.nodelay(True)
-    stdscr.timeout(100)  # screen refresh every 100 ms
+    stdscr.timeout(100)
 
+    init_colors()
     engine = tEngine()
     last_drop = time.time()
 
     while True:
         key = stdscr.getch()
+
         if key == ord('q'):
             break
         elif key == curses.KEY_LEFT:
@@ -59,20 +100,21 @@ def main(stdscr):
             engine.drop()
         elif key == curses.KEY_UP:
             engine.rotate()
-        elif key == ord(' '):  # hard drop
+        elif key == ord(' '):
             while not engine.check_collision(dy=1):
                 engine.piece_y += 1
             engine.lock_piece()
             engine.clear_lines()
             engine.spawn_piece()
 
-        if time.time() - last_drop > TICK_RATE:
+        if time.time() - last_drop > TICK_RATE and not engine.game_over:
             engine.drop()
             last_drop = time.time()
 
         draw_board(stdscr, engine)
 
-        if engine.game_over and key == ord('q'):
-            break
+        if engine.game_over:
+            time.sleep(0.1)
 
-curses.wrapper(main)
+if __name__ == "__main__":
+    curses.wrapper(main)
