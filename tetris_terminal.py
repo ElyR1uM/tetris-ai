@@ -5,4 +5,3 @@ engine = tetris_engine.tEngine()
 
 while not engine.game_over:
     engine.drop()
-    # Optionally: display board or log state

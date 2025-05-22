@@ -72,6 +72,7 @@ class tEngine:
             self.piece = rotated
 
     def lock_piece(self):
+        print("Piece Locked")
         for y, row in enumerate(self.piece):
             for x, cell in enumerate(row):
                 if cell:
