@@ -1,10 +1,11 @@
 # Visual interface in the terminal for tetris_engine.py
+# Curses is the library used to display the game
 import curses
 import time
 import tetris_engine
 from tetris_engine import tEngine
 
-TICK_RATE = 0.5  # seconds between automatic piece drops
+TICK_RATE = 0.5  # seconds between automatic piece drops, If we want to procedurally increase the speed, this is the value to change
 
 # Map piece types to colors
 PIECE_COLORS = {
@@ -20,13 +21,16 @@ PIECE_COLORS = {
 
 def init_colors():
     curses.start_color()
-    curses.use_default_colors()
+    curses.use_default_colors() # Ensures the color scheme fits with the terminal's theme
     for i, (ptype, color) in enumerate(PIECE_COLORS.items(), start=1):
         curses.init_pair(i, color, -1)  # foreground color, default background
 
+# Function to get the color pair for a specific cell in the board -> Which cell is a background cell and which one is a piece cell?
 def get_color_pair(engine, x, y):
+    # Draws anything outside of the board as empty
     if y < 0 or y >= len(engine.board) or x < 0 or x >= len(engine.board[0]):
         return 0
+    # Check if a cell if a part of a piece
     for piece_y, row in enumerate(engine.piece):
         for piece_x, cell in enumerate(row):
             if cell:
@@ -87,6 +91,7 @@ def main(stdscr):
     engine = tEngine()
     last_drop = time.time()
 
+    # Input handling
     while True:
         key = stdscr.getch()
 

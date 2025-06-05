@@ -1,4 +1,6 @@
 # Base engine of the tetris game with all logic handled
+# Now with full commenting so anyone can get how it works
+# Terminology: dx = delta x, dy = delta y, nx = new x, ny = new y
 
 # Piece selection
 import random
@@ -9,7 +11,7 @@ BOARD_WIDTH = 10
 BOARD_HEIGHT = 20
 
 TETROMINO_SHAPES  = {
-    # These are to be used with the TINT color scheme because I think it looks really cool
+    # These are used with the official Tetris color scheme
     # Light Blue
     "I": [[1, 1, 1, 1]],
     # Yellow
@@ -32,8 +34,9 @@ TETROMINO_SHAPES  = {
           [1, 1, 1]]
 }
 
-# Indian magic
+# Engine to run Tetris
 class tEngine: 
+    # Equivalent of a constructor
     def __init__(self):
         self.board = [[0 for _ in range(BOARD_WIDTH)] for _ in range(BOARD_HEIGHT)]
         self.score = 0
@@ -41,22 +44,35 @@ class tEngine:
         self.spawn_piece()
 
     def spawn_piece(self):
+        # Picks a random piece type from the shapes list
         self.piece_type = random.choice(list(TETROMINO_SHAPES.keys()))
+        # Copies the attributes (In this case the shape) of the selected piece type so the game knows how to display and hanle it's collisions
         self.piece = copy.deepcopy(TETROMINO_SHAPES[self.piece_type])
+        # Centers the piece
         self.piece_x = BOARD_WIDTH // 2 - len(self.piece[0]) // 2
+        # Spawns the piece at the top of the board
         self.piece_y = 0
+        # If the piece collides immediately upon spawning, end the game
         if self.check_collision():
-            print("Game Over")
             self.game_over = True
+            # To be done: Fully stop the game, Save scores.
 
+    # Handle collisions (Walls or other pieces)
     def check_collision(self, dx=0, dy=0, rotated_piece=None):
+        # Set the shape: Rotate if rotated, otherwise remain the same
         shape = rotated_piece if rotated_piece else self.piece
+        # "Imagine" the hitbox of the piece every tick
         for y, row in enumerate(shape):
+            # Enumerate through each possible field
             for x, cell in enumerate(row):
+                # Checks if the cell is filled (1) in the piece shape
                 if cell:
+                    # nx, ny = "New" x and y
                     nx = self.piece_x + x + dx
                     ny = self.piece_y + y + dy
+                    # If nx or ny are out of bounds, the piece collides with the board
                     if nx < 0 or nx >= BOARD_WIDTH or ny >= BOARD_HEIGHT:
+                        # returns collision
                         return True
                     if ny >= 0 and self.board[ny][nx]:
                         return True
@@ -64,27 +80,32 @@ class tEngine:
     
     def move(self, dx):
         if not self.check_collision(dx=dx):
+            # dx is negative when the left arrow is pressed and positive when the right arrow is pressed
             self.piece_x += dx
 
     def rotate(self):
+        # Reimagine the hitbox of the piece by taking the original shape and rotating it 90 deg clockwise
         rotated = [list(row) for row in zip(*self.piece[::-1])]
+        # Can't rotatie if the new rotated piece would collide with the board
         if not self.check_collision(rotated_piece=rotated):
             self.piece = rotated
 
+    # Places the piece and moves on to the next one
     def lock_piece(self):
-        print("Piece Locked")
         for y, row in enumerate(self.piece):
             for x, cell in enumerate(row):
                 if cell:
                     self.board[self.piece_y + y][self.piece_x + x] = 1
 
+    # Removes fully filled lines and shifts the board down
     def clear_lines(self):
         new_board = [row for row in self.board if any(cell == 0 for cell in row)]
-        cleared = BOARD_HEIGHT - len(new_board)
+        cleared = BOARD_HEIGHT - len(new_board) # Gives you the ability to clear multiple lines at once
+        # Add new empty lines at the top of the board to prevent the board from shrinking
         for _ in range(cleared):
             new_board.insert(0, [0] * BOARD_WIDTH)
         self.board = new_board
-        self.score += cleared
+        self.score += cleared # This is where the correct score calculations should go.
 
     def drop(self):
         if not self.check_collision(dy=1):
@@ -94,6 +115,7 @@ class tEngine:
             self.clear_lines()
             self.spawn_piece()
 
+    # Spacebar; Hard Drop, Teleports the piece to the bottom of the board
     def hard_drop(self):
         while not self.check_collision(dy=1):
             self.piece_y += 1
