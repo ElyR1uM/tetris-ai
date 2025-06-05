@@ -6,6 +6,7 @@
 import random
 import copy
 import json
+import datetime
 
 # Initialise the board width and height
 BOARD_WIDTH = 10
@@ -171,3 +172,23 @@ class tEngine:
         self.lock_piece()
         self.clear_lines()
         self.spawn_piece()
+
+    def write_scores(self):
+        # Write the score as an entry in a JSON array in scores.json
+        score_form = {
+            "score": self.score,
+            "date": datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
+        }
+        try:
+            with open("out/scores.json", "r") as f:
+                try:
+                    scores = json.load(f)
+                    if not isinstance(scores, list):
+                        scores = []
+                except json.JSONDecodeError:
+                    scores = []
+        except FileNotFoundError:
+            scores = []
+        scores.append(score_form)
+        with open("out/scores.json", "w") as f:
+            json.dump(scores, f, indent=4)

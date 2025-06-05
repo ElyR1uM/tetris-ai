@@ -16,6 +16,7 @@ PIECE_COLORS = {
     'L': curses.COLOR_WHITE,  # substitude for orange
 }
 
+game_score = 0
 
 def init_colors():
     curses.start_color()
@@ -88,21 +89,21 @@ def main(stdscr):
     engine = tEngine()
     last_drop = time.time()
 
-    # Input handling
     while True:
         key = stdscr.getch()
 
-        if key == ord('q'):
+        # Handle input
+        if key == ord('q'): # Quit
             break
         elif key == curses.KEY_LEFT:
             engine.move(-1)
         elif key == curses.KEY_RIGHT:
             engine.move(1)
-        elif key == curses.KEY_DOWN:
+        elif key == curses.KEY_DOWN: # Soft drop
             engine.drop()
-        elif key == curses.KEY_UP:
+        elif key == curses.KEY_UP: # Rotate
             engine.rotate()
-        elif key == ord(' '):
+        elif key == ord(' '): # Hard drop
             while not engine.check_collision(dy=1):
                 engine.piece_y += 1
             # This is the part where all the functions of tEngine are called
@@ -118,10 +119,11 @@ def main(stdscr):
         draw_board(stdscr, engine)
 
         if engine.game_over:
+            engine.write_scores()
+            global game_score
+            game_score = engine.score
             break
-
-    if engine.game_over:
-        print("Game Over! Your score:", engine.score)
 
 if __name__ == "__main__":
     curses.wrapper(main)
+    print("Game Over! Your score:", game_score)
