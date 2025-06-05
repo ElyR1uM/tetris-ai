@@ -49,8 +49,8 @@ class tEngine:
         self.score = 0
         self.game_over = False
         self.spawn_piece()
-        self.tick_rate = 0.8  # seconds between automatic piece drops
         self.level = 1  # Initial level
+        self.tick_rate = 1 / self.level  # seconds between automatic piece drops
         self.total_cleared = 0  # Total lines cleared, used to increase the level
         # For Troubleshooting, output files are created here
         with open("out/out0.txt", "w") as f:
@@ -144,15 +144,16 @@ class tEngine:
 
     # Difficulty scaling
     def increase_level(self):
-        # Increases the level every 10 lines cleared
-        if self.total_cleared >= 10:
+        # Increases the level every 10 lines cleared, with a maximum of Level 10
+        if self.total_cleared >= 10 & self.level < 10:
             self.level += 1
             self.total_cleared = 0  # Reset the cleared lines counter
-            # Decreasing the time between ticks by 0.0875 seconds with a maximum tick rate of 
-            # 10 ticks per second gives the game 8 levels of difficulty
-            self.tick_rate = max(0.1, self.tick_rate - 0.0875)
+            self.tick_rate = 1 / self.level
             with open("out/out2.txt", "a") as f:
                 f.write(f"Level increased: {self.level - 1} => {self.level}\n")
+
+    def calculate_efficiency(self): # This is supposed to calculate the efficiency of every turn the player does and should be a good parameter to pass on to the AI to "Improve"
+        return 0
 
     def drop(self):
         if not self.check_collision(dy=1):
