@@ -1,4 +1,2 @@
 # Ignore the out.txt as it is reduntant to push
-out.txt
 out?.txt
-out/
