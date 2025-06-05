@@ -5,10 +5,17 @@
 # Piece selection
 import random
 import copy
+import json
 
 # Initialise the board width and height
 BOARD_WIDTH = 10
 BOARD_HEIGHT = 20
+# Points awarded for clearing lines (At Level 1):
+# 4 - Single line
+# 10 - Double line
+# 30 - Triple line
+# 120 - Tetris (4 Lines)
+# The score is then multiplied by the level prior to the line clear, so a single line at level 3 would be worth 12 points.
 
 TETROMINO_SHAPES  = {
     # These are used with the official Tetris color scheme
@@ -42,6 +49,19 @@ class tEngine:
         self.score = 0
         self.game_over = False
         self.spawn_piece()
+        self.tick_rate = 0.8  # seconds between automatic piece drops
+        self.level = 1  # Initial level
+        self.total_cleared = 0  # Total lines cleared, used to increase the level
+        # For Troubleshooting, output files are created here
+        with open("out/out0.txt", "w") as f:
+            f.truncate(0)  # Clear the file at the start of the game
+            f.write("The game logs any time lines are cleared\n")
+        with open("out/out1.txt", "w") as f:
+            f.truncate(0)
+            f.write("Game log for total lines cleared\n")
+        with open("out/out2.txt", "w") as f:
+            f.truncate(0)
+            f.write("Level Log\n")
 
     def spawn_piece(self):
         # Picks a random piece type from the shapes list
@@ -101,11 +121,38 @@ class tEngine:
     def clear_lines(self):
         new_board = [row for row in self.board if any(cell == 0 for cell in row)]
         cleared = BOARD_HEIGHT - len(new_board) # Gives you the ability to clear multiple lines at once
+        with open("out/out0.txt", "a") as f:
+            if cleared > 0:
+                f.write(f"Cleared {cleared} lines\n")
+        oldtc = self.total_cleared
+        self.total_cleared += cleared        
+        with open("out/out1.txt", "a") as f:
+            if self.total_cleared > oldtc:
+                f.write(f"Total cleared lines: {self.total_cleared}\n")
+        # Debugging line to see how many lines were cleared
         # Add new empty lines at the top of the board to prevent the board from shrinking
         for _ in range(cleared):
             new_board.insert(0, [0] * BOARD_WIDTH)
         self.board = new_board
-        self.score += cleared # This is where the correct score calculations should go.
+        switcher = {
+            1: 4,  # Single line
+            2: 10, # Double line
+            3: 30, # Triple line
+            4: 120 # Tetris (4 Lines)
+        }
+        self.score += switcher.get(cleared, 0) * self.level  # Multiply the score by the level
+
+    # Difficulty scaling
+    def increase_level(self):
+        # Increases the level every 10 lines cleared
+        if self.total_cleared >= 10:
+            self.level += 1
+            self.total_cleared = 0  # Reset the cleared lines counter
+            # Decreasing the time between ticks by 0.0875 seconds with a maximum tick rate of 
+            # 10 ticks per second gives the game 8 levels of difficulty
+            self.tick_rate = max(0.1, self.tick_rate - 0.0875)
+            with open("out/out2.txt", "a") as f:
+                f.write(f"Level increased: {self.level - 1} => {self.level}\n")
 
     def drop(self):
         if not self.check_collision(dy=1):

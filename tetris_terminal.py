@@ -5,8 +5,6 @@ import time
 import tetris_engine
 from tetris_engine import tEngine
 
-TICK_RATE = 0.5  # seconds between automatic piece drops, If we want to procedurally increase the speed, this is the value to change
-
 # Map piece types to colors
 PIECE_COLORS = {
     'I': curses.COLOR_CYAN,
@@ -83,6 +81,7 @@ def draw_board(stdscr, engine):
     stdscr.refresh()
 
 def main(stdscr):
+    # Initialize the curses screen
     curses.curs_set(0)
     stdscr.nodelay(True)
     stdscr.timeout(100)
@@ -108,11 +107,13 @@ def main(stdscr):
         elif key == ord(' '):
             while not engine.check_collision(dy=1):
                 engine.piece_y += 1
+            # This is the part where all the functions of tEngine are called
             engine.lock_piece()
             engine.clear_lines()
             engine.spawn_piece()
+            engine.increase_level()
 
-        if time.time() - last_drop > TICK_RATE and not engine.game_over:
+        if time.time() - last_drop > engine.tick_rate and not engine.game_over:
             engine.drop()
             last_drop = time.time()
 
