@@ -76,8 +76,6 @@ def draw_board(stdscr, engine):
 
     stdscr.addstr(len(board), 0, "+" + "--" * len(board[0]) + "+")
     stdscr.addstr(len(board) + 2, 0, f"Score: {engine.score}")
-    if engine.game_over:
-        stdscr.addstr(len(board) + 3, 0, "GAME OVER. Press Q to quit.")
     stdscr.refresh()
 
 def main(stdscr):
@@ -120,7 +118,10 @@ def main(stdscr):
         draw_board(stdscr, engine)
 
         if engine.game_over:
-            time.sleep(0.1)
+            break
+
+    if engine.game_over:
+        print("Game Over! Your score:", engine.score)
 
 if __name__ == "__main__":
     curses.wrapper(main)

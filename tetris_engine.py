@@ -145,9 +145,10 @@ class tEngine:
     # Difficulty scaling
     def increase_level(self):
         # Increases the level every 10 lines cleared, with a maximum of Level 10
+        # Right now this is bugged, increasing levels every 2 or so lines
         if self.total_cleared >= 10 & self.level < 10:
+            self.total_cleared -= 10  # Reset the cleared lines counter
             self.level += 1
-            self.total_cleared = 0  # Reset the cleared lines counter
             self.tick_rate = 1 / self.level
             with open("out/out2.txt", "a") as f:
                 f.write(f"Level increased: {self.level - 1} => {self.level}\n")
