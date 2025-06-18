@@ -13,8 +13,40 @@ PIECE_COLORS = {
     'S': curses.COLOR_GREEN,
     'Z': curses.COLOR_RED,
     'J': curses.COLOR_BLUE,
-    'L': curses.COLOR_WHITE,  # substitude for orange
+    'L': 208,  # substitude for orange
 }
+
+def main(stdscr):
+curses.curs_set(0)
+curses.start_color()
+curses.use_default_colors()
+
+color_lookup = {}
+for piece_type, color in PIECE_COLORS.items():
+    pair_id = ord(piece_type)
+    curses.init_pair(pair_id, color, curses.COLOR_BLACK)
+    color_lookup[piece_type] = pair.id
+
+    grid = [None for _ in range(10)] [for _ in range(20)]
+        
+        locked_piece = {
+            'type': 'L', 
+            'shape': [
+                [1, 0],
+                [1, 0], 
+                [1, 1]
+            ], 
+            'x': 3, 
+            'y': 0
+
+        }
+
+        for dy, row in enumerate(locked_piece['shape']):
+            for dx, val in enumerate(row):
+                if val:
+                    gy = locked_piece['y'] + dy
+                    gx = locked_piece['x'] + dx
+                    if 0<=
 
 game_score = 0
 
