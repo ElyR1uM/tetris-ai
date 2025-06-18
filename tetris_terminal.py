@@ -3,7 +3,6 @@
 import curses
 import time
 import tetris_engine
-import os
 from tetris_engine import tEngine
 
 # Map piece types to colors
@@ -135,15 +134,21 @@ def main(stdscr):
                     stdscr.addstr(len(engine.board) + 6, 0, "Enter your name: ")
                     stdscr.refresh()
                     curses.echo()
-                    name = stdscr.getstr(len(engine.board) + 4, len("Enter your name: ") + 1, 20).decode('utf-8')
+                    name = stdscr.getstr(len(engine.board) + 6, len("Enter your name: ") + 1, 20).decode('utf-8')
                     curses.noecho()
 
                     engine.write_scores(name)
                     break
                 elif key in [ord('n'), ord('N')]:
+                    stdscr.addstr(len(engine.board) + 6, 0, "Score not saved. Exiting...")
                     break
                 elif key != -1:
                     break
+
+            stdscr.refresh()
+            stdscr.getch()
+
+            return
 
 if __name__ == "__main__":
     curses.wrapper(main)
