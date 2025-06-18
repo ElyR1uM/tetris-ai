@@ -126,7 +126,7 @@ class tEngine:
             if cleared > 0:
                 f.write(f"Cleared {cleared} lines\n")
         oldtc = self.total_cleared
-        self.total_cleared += cleared        
+        self.total_cleared += cleared
         with open("out/out1.txt", "a") as f:
             if self.total_cleared > oldtc:
                 f.write(f"Total cleared lines: {self.total_cleared}\n")
