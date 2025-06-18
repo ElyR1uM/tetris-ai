@@ -3,6 +3,7 @@
 import curses
 import time
 import tetris_engine
+import os
 from tetris_engine import tEngine
 
 # Map piece types to colors
@@ -119,11 +120,30 @@ def main(stdscr):
         draw_board(stdscr, engine)
 
         if engine.game_over:
-            engine.write_scores()
-            global game_score
-            game_score = engine.score
-            break
+            draw_board(stdscr, engine)
+            stdscr.nodelay(False)
+            stdscr.addstr(len(engine.board) + 3, 0, "Game Over! Press any key to exit.")
+            stdscr.addstr(len(engine.board) + 4, 0, f"Final Score: {engine.score}")
+            stdscr.addstr(len(engine.board) + 5, 0, "Do you want to save your score? (y/n)")
+            stdscr.refresh()
+
+            while True:
+                key = stdscr.getch()
+                if key in [ord('y'), ord('Y')]:
+                    # Here you would save the score to a file or database
+                    # For now, we just print it
+                    stdscr.addstr(len(engine.board) + 6, 0, "Enter your name: ")
+                    stdscr.refresh()
+                    curses.echo()
+                    name = stdscr.getstr(len(engine.board) + 4, len("Enter your name: ") + 1, 20).decode('utf-8')
+                    curses.noecho()
+
+                    engine.write_scores(name)
+                    break
+                elif key in [ord('n'), ord('N')]:
+                    break
+                elif key != -1:
+                    break
 
 if __name__ == "__main__":
     curses.wrapper(main)
-    print("Game Over! Your score:", game_score)
