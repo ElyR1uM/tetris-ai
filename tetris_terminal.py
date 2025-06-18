@@ -129,8 +129,7 @@ def main(stdscr):
             while True:
                 key = stdscr.getch()
                 if key in [ord('y'), ord('Y')]:
-                    # Here you would save the score to a file or database
-                    # For now, we just print it
+                    # Ask for the player's name (KI for AI tries)
                     stdscr.addstr(len(engine.board) + 6, 0, "Enter your name: ")
                     stdscr.refresh()
                     curses.echo()
