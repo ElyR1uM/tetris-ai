@@ -53,6 +53,7 @@ class tEngine:
         self.level = 1  # Initial level
         self.tick_rate = 1 / self.level  # seconds between automatic piece drops
         self.total_cleared = 0  # Total lines cleared, used to increase the level
+        self.floating_cells = 0  # Used to calculate efficiency
         # For Troubleshooting, output files are created here
         with open("out/out0.txt", "w") as f:
             f.truncate(0)  # Clear the file at the start of the game
@@ -63,6 +64,9 @@ class tEngine:
         with open("out/out2.txt", "w") as f:
             f.truncate(0)
             f.write("Level Log\n")
+        with open("out/out3.txt", "w") as f:
+            f.truncate(0)
+            f.write("Floating cells log\n")
 
     def spawn_piece(self):
         # Picks a random piece type from the shapes list
@@ -117,6 +121,7 @@ class tEngine:
             for x, cell in enumerate(row):
                 if cell:
                     self.board[self.piece_y + y][self.piece_x + x] = 1
+        self.calculate_efficiency()
 
     # Removes fully filled lines and shifts the board down
     def clear_lines(self):
@@ -154,22 +159,27 @@ class tEngine:
             with open("out/out2.txt", "a") as f:
                 f.write(f"Level increased: {self.level - 1} => {self.level}\n")
 
-    def calculate_efficiency(self): # TBD
-#        shape_matrix = TETROMINO_SHAPES[self.piece_type]
-#        floating_cells = 0
-#
-#        for dy, row in enumerate(shape_matrix):
-#            for dx, cell in enumerate(row):
-#                if cell:
-#                    board_x = self.piece_x + dx
-#                    board_y = self.piece_y + dy
-#                    # Check if below is empty or out of bounds
-#                    if board_y + 1 >= BOARD_HEIGHT or self.board[board_y + 1][board_x] == 0:
-#                        floating_cells += 1
-#            efficiency = 100 * (4 - floating_cells) / 4;
-#        with open("out/out3.txt", "w") as f:
-#            f.write(f"Floating cells: {floating_cells}%\n")
-        return 0 #efficiency
+    def calculate_efficiency(self, shape_matrix=None):
+        # Allow passing a rotated piece shape for efficiency calculation
+        if shape_matrix is None:
+            shape_matrix = self.piece
+        self.floating_cells = 0  # Reset floating cells count
+        total_cells = 0  # Count total filled cells in the current piece
+
+        for dy, row in enumerate(shape_matrix):
+            for dx, cell in enumerate(row):
+                if cell:
+                    total_cells += 1
+                    board_x = self.piece_x + dx
+                    board_y = self.piece_y + dy
+                    # Check if below is empty (within the board)
+                    if board_y + 1 < BOARD_HEIGHT and self.board[board_y + 1][board_x] == 0:
+                        self.floating_cells += 1
+        denominator = total_cells if total_cells > 0 else 1  # Prevent division by zero
+        efficiency = 100 * (denominator - self.floating_cells) / denominator
+        with open("out/out3.txt", "a") as f:
+            f.write(f"Floating cells: {self.floating_cells}, Efficiency: {efficiency}\n")
+        return efficiency
 
     def drop(self):
         if not self.check_collision(dy=1):
