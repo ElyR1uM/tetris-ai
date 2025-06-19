@@ -4,8 +4,9 @@ Python-basiertes Terminal Tetris game, in Zukunft mit KI-Agent.
 
 Benötigt, um lokal zu debuggen:
 Python + 
-    curses
-    ssl module (falls später pygame benutzt wird)
+- curses
+- ssl module (falls später pygame benutzt wird)
+- matplotlib
 
 Benutzte Python version: 3.13.3
 
