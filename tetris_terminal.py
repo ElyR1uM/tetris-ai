@@ -113,6 +113,7 @@ def main(stdscr):
             engine.clear_lines()
             engine.spawn_piece()
             engine.increase_level()
+            engine.calculate_efficiency()  # Calculate efficiency after piece is locked
 
         if time.time() - last_drop > engine.tick_rate and not engine.game_over:
             engine.drop()
