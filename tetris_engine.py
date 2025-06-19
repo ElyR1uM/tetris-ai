@@ -154,7 +154,7 @@ class tEngine:
             with open("out/out2.txt", "a") as f:
                 f.write(f"Level increased: {self.level - 1} => {self.level}\n")
 
-    def calculate_efficiency(self): # This is supposed to calculate the efficiency of every turn the player does and should be a good parameter to pass on to the AI to "Improve"
+    def calculate_efficiency(self): # TBD
         return 0
 
     def drop(self):
