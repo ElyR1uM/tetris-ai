@@ -76,7 +76,7 @@ class tEngine:
         # If the piece collides immediately upon spawning, end the game
         if self.check_collision():
             self.game_over = True
-            # To be done: Fully stop the game, Save scores.
+            # To be done: Fully stop the game
 
     # Handle collisions (Walls or other pieces)
     def check_collision(self, dx=0, dy=0, rotated_piece=None):
