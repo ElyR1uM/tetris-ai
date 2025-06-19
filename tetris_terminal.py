@@ -136,7 +136,7 @@ def main(stdscr):
                     stdscr.addstr(len(engine.board) + 8, 0, "Enter your name: ")
                     stdscr.refresh()
                     curses.echo()
-                    name = stdscr.getstr(len(engine.board) + 9, len("Enter your name: ") + 1, 20).decode('utf-8')
+                    name = stdscr.getstr(len(engine.board) + 8, len("Enter your name: ") + 1, 20).decode('utf-8')
                     curses.noecho()
 
                     # Writes scores to file (obviously)
