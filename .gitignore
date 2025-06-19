@@ -1,3 +1,5 @@
 # Ignore the out.txt as it is reduntant to push
 out?.txt
 tetris_linegraph.jpeg
+__pycache__/
+*.pyc
