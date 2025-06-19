@@ -154,8 +154,22 @@ class tEngine:
             with open("out/out2.txt", "a") as f:
                 f.write(f"Level increased: {self.level - 1} => {self.level}\n")
 
-    def calculate_efficiency(self): # TBD
-        return 0
+    #def calculate_efficiency(self): # TBD
+    #    shape_matrix = TETROMINO_SHAPES[self.piece_type]
+    #    floating_cells = 0
+#
+    #    for dy, row in enumerate(shape_matrix):
+    #        for dx, cell in enumerate(row):
+    #            if cell:
+    #                board_x = self.piece_x + dx
+    #                board_y = self.piece_y + dy
+    #                # Check if below is empty or out of bounds
+    #                if board_y + 1 >= BOARD_HEIGHT or self.board[board_y + 1][board_x] == 0:
+    #                    floating_cells += 1
+    #        efficiency = 100 * (4 - floating_cells) / 4;
+    #    with open("out/out3.txt", "w") as f:
+    #        f.write(f"Floating cells: {floating_cells}%\n")
+    #    return efficiency
 
     def drop(self):
         if not self.check_collision(dy=1):
@@ -177,7 +191,7 @@ class tEngine:
         # Write the score as an entry in a JSON array in scores.json
         score_form = {
             "score": self.score,
-            "date": datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S"), # UTC timezone if the highscore is achieved through the codespace
+            "date": datetime.datetime.now().strftime("%d/%m/%Y"), # UTC timezone if the highscore is achieved through the codespace
             "name": name,
         }
         try:
