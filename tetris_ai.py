@@ -42,7 +42,7 @@ def run_tetris_action(proc, action):
     w = 0.1 # Weight of Efficiency
     # Read output from tetris_terminal (implement protocol as needed)
     board = engine.board  # Replace with actual board parsing
-    reward = score_gain + w * engine.efficiency
+    reward = score_gain + w * engine.efficiency / 100
     done = engine.game_over     # Game Over flag
     return board, reward, done
 
