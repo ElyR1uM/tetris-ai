@@ -3,6 +3,7 @@
 # Terminology: dx = delta x, dy = delta y, nx = new x, ny = new y
 
 # Piece selection
+from ctypes import cdll
 import random
 import copy
 import json
@@ -42,6 +43,15 @@ TETROMINO_SHAPES  = {
           [1, 1, 1]]
 }
 
+TETROMINO_COLORS = {
+    "I": (0, 255, 255),      # Light Blue
+    "O": (255, 255, 0),      # Yellow
+    "T": (128, 0, 128),      # Magenta
+    "S": (0, 255, 0),        # Green
+    "J": (0, 0, 255),        # Dark Blue
+    "L": (255, 165, 0),      # Orange
+    "Z": (255, 0, 0)         # Red (optional, falls du auch Rot brauchst)
+}
 # Engine to run Tetris
 class tEngine: 
     # Equivalent of a constructor
@@ -112,11 +122,15 @@ class tEngine:
             self.piece = rotated
 
     # Places the piece and moves on to the next one
+        print("Locking piece at postion:", self.piece_type)
     def lock_piece(self):
         for y, row in enumerate(self.piece):
             for x, cell in enumerate(row):
                 if cell:
-                    self.board[self.piece_y + y][self.piece_x + x] = 1
+                    self.board[self.piece_y + y][self.piece_x + x] = {
+                        "piece": self.piece_type,
+                        "color": TETROMINO_COLORS[self.piece_type]
+                        }
 
     # Removes fully filled lines and shifts the board down
     def clear_lines(self):
@@ -172,6 +186,11 @@ class tEngine:
         self.lock_piece()
         self.clear_lines()
         self.spawn_piece()
+    
+    cell = self.board[y][x]
+    if cell != 0:
+        color = cell["color"]
+            
 
     def write_scores(self):
         # Write the score as an entry in a JSON array in scores.json

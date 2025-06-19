@@ -4,6 +4,16 @@ import curses
 import time
 import tetris_engine
 from tetris_engine import tEngine
+import curses
+
+def init_orange():
+    """Initialisiert Orange mit intelligenten Fallbacks"""
+    try:
+        curses.init_color(208, 1000, 500 , 0)
+    except Exception:
+        # Fallback: use a default color if orange cannot be initialized
+        return curses.COLOR_YELLOW
+    return 208
 
 # Map piece types to colors
 PIECE_COLORS = {
@@ -13,48 +23,8 @@ PIECE_COLORS = {
     'S': curses.COLOR_GREEN,
     'Z': curses.COLOR_RED,
     'J': curses.COLOR_BLUE,
-    'L': 208,  # substitude for orange
+    'L': init_orange(),  # substitude for orange
 }
-
-def main(stdscr):
-curses.curs_set(0)
-curses.start_color()
-curses.use_default_colors()
-
-color_lookup = {}
-for piece_type, color in PIECE_COLORS.items():
-    pair_id = ord(piece_type)
-    curses.init_pair(pair_id, color, curses.COLOR_BLACK)
-    color_lookup[piece_type] = pair.id
-
-    grid = [None for _ in range(10)] [for _ in range(20)]
-        
-        locked_piece = {
-            'type': 'L', 
-            'shape': [
-                [1, 0],
-                [1, 0], 
-                [1, 1]
-            ], 
-            'x': 3, 
-            'y': 0
-
-        }
-
-        for dy, row in enumerate(locked_piece['shape']):
-            for dx, val in enumerate(row):
-                if val:
-                    gy = locked_piece['y'] + dy
-                    gx = locked_piece['x'] + dx
-                    if 0<=
-
-game_score = 0
-
-def init_colors():
-    curses.start_color()
-    curses.use_default_colors() # Ensures the color scheme fits with the terminal's theme
-    for i, (ptype, color) in enumerate(PIECE_COLORS.items(), start=1):
-        curses.init_pair(i, color, -1)  # foreground color, default background
 
 # Function to get the color pair for a specific cell in the board -> Which cell is a background cell and which one is a piece cell?
 def get_color_pair(engine, x, y):
@@ -110,6 +80,11 @@ def draw_board(stdscr, engine):
     stdscr.addstr(len(board), 0, "+" + "--" * len(board[0]) + "+")
     stdscr.addstr(len(board) + 2, 0, f"Score: {engine.score}")
     stdscr.refresh()
+
+def init_colors():
+    curses.use_default_colors()
+    for i, (ptype, color) in enumerate(PIECE_COLORS.items(), start=1):
+        curses.init_pair(i, color, -1)  # foreground color, default background
 
 def main(stdscr):
     # Initialize the curses screen
