@@ -48,12 +48,14 @@ class tEngine:
     def __init__(self):
         self.board = [[0 for _ in range(BOARD_WIDTH)] for _ in range(BOARD_HEIGHT)]
         self.score = 0
+        self.last_score = 0
         self.game_over = False
         self.spawn_piece()
         self.level = 1  # Initial level
         self.tick_rate = 1 / self.level  # seconds between automatic piece drops
         self.total_cleared = 0  # Total lines cleared, used to increase the level
         self.floating_cells = 0  # Used to calculate efficiency
+        self.efficiency = 0
         # For Troubleshooting, output files are created here
         with open("out/out0.txt", "w") as f:
             f.truncate(0)  # Clear the file at the start of the game
@@ -125,6 +127,7 @@ class tEngine:
 
     # Removes fully filled lines and shifts the board down
     def clear_lines(self):
+        self.last_score = self.score
         new_board = [row for row in self.board if any(cell == 0 for cell in row)]
         cleared = BOARD_HEIGHT - len(new_board) # Gives you the ability to clear multiple lines at once
         with open("out/out0.txt", "a") as f:
@@ -176,10 +179,10 @@ class tEngine:
                     if board_y + 1 < BOARD_HEIGHT and self.board[board_y + 1][board_x] == 0:
                         self.floating_cells += 1
         denominator = total_cells if total_cells > 0 else 1  # Prevent division by zero
-        efficiency = 100 * (denominator - self.floating_cells) / denominator
+        self.efficiency = 100 * (denominator - self.floating_cells) / denominator
         with open("out/out3.txt", "a") as f:
-            f.write(f"Floating cells: {self.floating_cells}, Efficiency: {efficiency}\n")
-        return efficiency
+            f.write(f"Floating cells: {self.floating_cells}, Efficiency: {self.efficiency}\n")
+        return
 
     def drop(self):
         if not self.check_collision(dy=1):

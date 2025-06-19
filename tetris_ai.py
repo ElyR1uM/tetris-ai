@@ -2,18 +2,18 @@ import numpy as np
 import pickle
 import random
 import subprocess
-from tetris_engine import tEngine  # Enable access to tetris engine
+from tetris_engine import tEngine  # Give Access to tEngine vars
 
-# Q-Learning AI to play Tetris via tetris_terminal
-engine = tEngine()  # Set engine to instance of tEngine
+# Set engine to instance of tEngine
+engine = tEngine()  
 
 # Hyperparameters
-ALPHA = 0.1      # Learning rate
+ALPHA = 0.1      # Learn rate
 GAMMA = 0.99     # Discount factor
 EPSILON = 0.1    # Exploration rate
 EPISODES = 1000  # Number of games to play
 
-# Q-table: state-action values
+# Q-table
 Q = {}
 
 def get_state(board):
@@ -38,9 +38,11 @@ def run_tetris_action(proc, action):
     """Send action to tetris_terminal and get new state, reward, done."""
     proc.stdin.write((action + '\n').encode())
     proc.stdin.flush()
+    score_gain = engine.score - engine.last_score
+    w = 0.1 # Weight of Efficiency
     # Read output from tetris_terminal (implement protocol as needed)
-    board = np.zeros((20, 10))  # Replace with actual board parsing
-    reward = 0     # Reward
+    board = engine.board  # Replace with actual board parsing
+    reward = score_gain + w * engine.efficiency
     done = engine.game_over     # Game Over flag
     return board, reward, done
 
