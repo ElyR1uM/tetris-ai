@@ -119,11 +119,37 @@ def main(stdscr):
         draw_board(stdscr, engine)
 
         if engine.game_over:
-            engine.write_scores()
-            global game_score
-            game_score = engine.score
-            break
+            # Game Over Screen
+            draw_board(stdscr, engine)
+            stdscr.nodelay(False)
+            stdscr.addstr(len(engine.board) + 3, 0, "Game Over! Press any key to exit.")
+            stdscr.addstr(len(engine.board) + 4, 0, f"Final Score: {engine.score}")
+            stdscr.addstr(len(engine.board) + 5, 0, "Do you want to save your score? (y/n)")
+            stdscr.refresh()
+
+            while True:
+                key = stdscr.getch()
+                if key in [ord('y'), ord('Y')]: # Gives the option to write a small y or a capitalised Y
+                    # Ask for the player's name (KI for AI tries)
+                    stdscr.addstr(len(engine.board) + 6, 0, "Enter your name: ")
+                    stdscr.refresh()
+                    curses.echo()
+                    name = stdscr.getstr(len(engine.board) + 6, len("Enter your name: ") + 1, 20).decode('utf-8')
+                    curses.noecho()
+
+                    engine.write_scores(name)
+                    break
+                elif key in [ord('n'), ord('N')]:
+                    stdscr.addstr(len(engine.board) + 6, 0, "Score not saved. Press any button to exit.")
+                    break
+                elif key != -1:
+                    break
+
+            stdscr.refresh()
+            stdscr.getch()
+
+            # Exits game loop
+            return
 
 if __name__ == "__main__":
     curses.wrapper(main)
-    print("Game Over! Your score:", game_score)

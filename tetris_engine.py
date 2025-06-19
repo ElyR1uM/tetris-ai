@@ -173,11 +173,12 @@ class tEngine:
         self.clear_lines()
         self.spawn_piece()
 
-    def write_scores(self):
+    def write_scores(self, name):
         # Write the score as an entry in a JSON array in scores.json
         score_form = {
             "score": self.score,
             "date": datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S"), # UTC timezone if the highscore is achieved through the codespace
+            "name": name,
         }
         try:
             with open("out/scores.json", "r") as f:
