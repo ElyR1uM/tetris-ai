@@ -119,6 +119,7 @@ def main(stdscr):
         draw_board(stdscr, engine)
 
         if engine.game_over:
+            # Game Over Screen
             draw_board(stdscr, engine)
             stdscr.nodelay(False)
             stdscr.addstr(len(engine.board) + 3, 0, "Game Over! Press any key to exit.")
@@ -128,7 +129,7 @@ def main(stdscr):
 
             while True:
                 key = stdscr.getch()
-                if key in [ord('y'), ord('Y')]:
+                if key in [ord('y'), ord('Y')]: # Gives the option to write a small y or a capitalised Y
                     # Ask for the player's name (KI for AI tries)
                     stdscr.addstr(len(engine.board) + 6, 0, "Enter your name: ")
                     stdscr.refresh()
@@ -139,7 +140,7 @@ def main(stdscr):
                     engine.write_scores(name)
                     break
                 elif key in [ord('n'), ord('N')]:
-                    stdscr.addstr(len(engine.board) + 6, 0, "Score not saved. Exiting...")
+                    stdscr.addstr(len(engine.board) + 6, 0, "Score not saved. Press any button to exit.")
                     break
                 elif key != -1:
                     break
@@ -147,6 +148,7 @@ def main(stdscr):
             stdscr.refresh()
             stdscr.getch()
 
+            # Exits game loop
             return
 
 if __name__ == "__main__":
