@@ -3,3 +3,5 @@ out?.txt
 tetris_linegraph.jpeg
 __pycache__/
 *.pyc
+*.pkl
+q-ai/
