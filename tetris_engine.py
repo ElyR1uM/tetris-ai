@@ -165,32 +165,10 @@ class tEngine:
             self.tick_rate = 1 / self.level
             with open("out/out2.txt", "a") as f:
                 f.write(f"Level increased: {self.level - 1} => {self.level}\n")
-
-    """def calculate_efficiency(self, shape_matrix=None):
-        # Allow passing a rotated piece shape for efficiency calculation
-        if shape_matrix is None:
-            shape_matrix = self.piece
-        self.floating_cells = 0  # Reset floating cells count
-        total_cells = 0  # Count total filled cells in the current piece
-
-        for dy, row in enumerate(shape_matrix):
-            for dx, cell in enumerate(row):
-                if cell:
-                    total_cells += 1
-                    board_x = self.piece_x + dx
-                    board_y = self.piece_y + dy
-                    # Check if below is empty (within the board)
-                    if board_y + 1 < BOARD_HEIGHT and self.board[board_y + 1][board_x] == 0:
-                        self.floating_cells += 1
-        denominator = total_cells if total_cells > 0 else 1  # Prevent division by zero
-        self.efficiency = 100 * (denominator - self.floating_cells) / denominator
-        with open("out/out3.txt", "a") as f:
-            f.write(f"Floating cells: {self.floating_cells}, Efficiency: {self.efficiency}\n")
-        return"""
     
     def calculate_efficiency(self, shape_matrix=None):
         """
-        Calculate a comprehensive efficiency metric based on:
+        Calculate an efficiency metric based on:
         - Height-based scoring: Penalizes high columns
         - Hole counting: Heavily penalizes gaps beneath blocks
         - Line completion: Rewards near-complete rows
