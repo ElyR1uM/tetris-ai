@@ -1,7 +1,5 @@
-#!/usr/bin/env python3
 """
-Training system for Tetris AI using Q-Learning
-FIXED: Proper logging formatting and interactive input handling
+Trainer Winkler
 """
 
 import pickle

@@ -70,6 +70,7 @@ class tEngine:
         self.spawn_piece()
         self.level = 1
         self.tick_rate = 1 / self.level  # seconds between automatic piece drops
+        self.prevtc = 0
         self.total_cleared = 0  # Total lines cleared, used to increase the level
         self.floating_cells = 0  # Used to calculate efficiency
         self.efficiency = 0
@@ -137,10 +138,10 @@ class tEngine:
         with open("out/out0.txt", "a") as f:
             if cleared > 0:
                 f.write(f"Cleared {cleared} lines\n")
-        oldtc = self.total_cleared
+        self.prevtc = self.total_cleared
         self.total_cleared += cleared
         with open("out/out1.txt", "a") as f:
-            if self.total_cleared > oldtc:
+            if self.total_cleared > self.prevtc:
                 f.write(f"Total cleared lines: {self.total_cleared}\n")
         # Debugging line to see how many lines were cleared
         # Add new empty lines at the top of the board to prevent the board from shrinking
