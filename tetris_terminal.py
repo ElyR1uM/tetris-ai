@@ -86,7 +86,7 @@ def draw_board(stdscr, engine):
     stdscr.addstr(len(board), 0, "+" + "--" * len(board[0]) + "+")
     stdscr.addstr(len(board) + 2, 0, f"Score: {engine.score}")
     stdscr.addstr(len(board) + 3, 0, f"Level: {engine.level}")
-    stdscr.addstr(len(board) + 4, 0, f"Efficiency: {engine.efficiency}")
+    stdscr.addstr(len(board) + 4, 0, f"Efficiency: {engine.efficiency}%")
     stdscr.refresh()
 
 def main(stdscr):
