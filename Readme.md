@@ -1,13 +1,7 @@
 # Tetris-Ai
 
-Python-basiertes Terminal Tetris game, in Zukunft mit KI-Agent.
+Python-basiertes Terminal Tetris game
 
-Benötigt, um lokal zu debuggen:
-Python + 
-- curses
-- ssl module (falls später pygame benutzt wird)
-- matplotlib
+Benutzte Python version: 3.10
 
-Benutzte Python version: 3.13.3
-
-Schwere inspiration von [TINT](https://github.com/DavidGriffith/tint)
+Inspiration von [TINT](https://github.com/DavidGriffith/tint)

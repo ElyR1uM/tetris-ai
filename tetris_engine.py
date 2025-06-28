@@ -46,13 +46,7 @@ TETROMINO_SHAPES  = {
 class tEngine: 
     # Equivalent of a constructor
     def __init__(self):
-        self.board = [[0 for _ in range(BOARD_WIDTH)] for _ in range(BOARD_HEIGHT)]
-        self.score = 0
-        self.game_over = False
-        self.spawn_piece()
-        self.level = 1  # Initial level
-        self.tick_rate = 1 / self.level  # seconds between automatic piece drops
-        self.total_cleared = 0  # Total lines cleared, used to increase the level
+        self.reset()
         # For Troubleshooting, output files are created here
         with open("out/out0.txt", "w") as f:
             f.truncate(0)  # Clear the file at the start of the game
@@ -63,6 +57,23 @@ class tEngine:
         with open("out/out2.txt", "w") as f:
             f.truncate(0)
             f.write("Level Log\n")
+        with open("out/out3.txt", "w") as f:
+            f.truncate(0)
+            f.write("Floating cells log\n")
+
+    def reset(self):
+        # Game reset
+        self.board = [[0 for _ in range(BOARD_WIDTH)] for _ in range(BOARD_HEIGHT)]
+        self.score = 0
+        self.last_score = 0
+        self.game_over = False
+        self.spawn_piece()
+        self.level = 1
+        self.tick_rate = 1 / self.level  # seconds between automatic piece drops
+        self.prevtc = 0
+        self.total_cleared = 0  # Total lines cleared, used to increase the level
+        self.floating_cells = 0  # Used to calculate efficiency
+        self.efficiency = 0
 
     def spawn_piece(self):
         # Picks a random piece type from the shapes list
@@ -76,7 +87,7 @@ class tEngine:
         # If the piece collides immediately upon spawning, end the game
         if self.check_collision():
             self.game_over = True
-            # To be done: Fully stop the game, Save scores.
+            # To be done: Fully stop the game
 
     # Handle collisions (Walls or other pieces)
     def check_collision(self, dx=0, dy=0, rotated_piece=None):
@@ -116,19 +127,26 @@ class tEngine:
         for y, row in enumerate(self.piece):
             for x, cell in enumerate(row):
                 if cell:
-                    self.board[self.piece_y + y][self.piece_x + x] = 1
+                    board_x = self.piece_x + x
+                    board_y = self.piece_y + y
+                    if 0 <= board_x < BOARD_WIDTH and 0 <= board_y < BOARD_HEIGHT:
+                        # Store the piece type instead of just True
+                        self.board[board_y][board_x] = self.piece_type
+                    #self.board[self.piece_y + y][self.piece_x + x] = 1
+        self.calculate_efficiency()
 
     # Removes fully filled lines and shifts the board down
     def clear_lines(self):
+        self.last_score = self.score
         new_board = [row for row in self.board if any(cell == 0 for cell in row)]
         cleared = BOARD_HEIGHT - len(new_board) # Gives you the ability to clear multiple lines at once
         with open("out/out0.txt", "a") as f:
             if cleared > 0:
                 f.write(f"Cleared {cleared} lines\n")
-        oldtc = self.total_cleared
+        self.prevtc = self.total_cleared
         self.total_cleared += cleared
         with open("out/out1.txt", "a") as f:
-            if self.total_cleared > oldtc:
+            if self.total_cleared > self.prevtc:
                 f.write(f"Total cleared lines: {self.total_cleared}\n")
         # Debugging line to see how many lines were cleared
         # Add new empty lines at the top of the board to prevent the board from shrinking
@@ -153,9 +171,167 @@ class tEngine:
             self.tick_rate = 1 / self.level
             with open("out/out2.txt", "a") as f:
                 f.write(f"Level increased: {self.level - 1} => {self.level}\n")
+    
+    def calculate_efficiency(self, shape_matrix=None):
+        """
+        Calculate an efficiency metric based on:
+        - Height-based scoring: Penalizes high columns
+        - Hole counting: Heavily penalizes gaps beneath blocks
+        - Line completion: Rewards near-complete rows
+        - Bumpiness/smoothness: Penalizes height differences between columns
+        - Well formation: Considers deep vertical gaps
 
-    def calculate_efficiency(self): # This is supposed to calculate the efficiency of every turn the player does and should be a good parameter to pass on to the AI to "Improve"
-        return 0
+        Returns efficiency score from 0-100 (higher is better)
+        """
+        if shape_matrix is None:
+            shape_matrix = self.piece
+
+        # Create a temporary board with the current piece placed
+        temp_board = [row[:] for row in self.board]
+
+        # Place the current piece on the temporary board
+        for dy, row in enumerate(shape_matrix):
+            for dx, cell in enumerate(row):
+                if cell:
+                    board_x = self.piece_x + dx
+                    board_y = self.piece_y + dy
+                    if 0 <= board_x < BOARD_WIDTH and 0 <= board_y < BOARD_HEIGHT:
+                        temp_board[board_y][board_x] = 1
+
+        # 1. HEIGHT-BASED SCORING
+        column_heights = []
+        for x in range(BOARD_WIDTH):
+            height = 0
+            for y in range(BOARD_HEIGHT):
+                if temp_board[y][x] == 1:
+                    height = BOARD_HEIGHT - y
+                    break
+            column_heights.append(height)
+
+        max_height = max(column_heights) if column_heights else 0
+        avg_height = sum(column_heights) / len(column_heights)
+
+        # Height penalty (0-30 points, lower is better)
+        height_score = max(0, 30 - (max_height * 1.5 + avg_height * 0.5))
+
+        # 2. HOLE COUNTING
+        holes = 0
+        for x in range(BOARD_WIDTH):
+            found_block = False
+            for y in range(BOARD_HEIGHT):
+                if temp_board[y][x] == 1:
+                    found_block = True
+                elif found_block and temp_board[y][x] == 0:
+                    holes += 1
+
+        # Hole penalty (0-25 points, fewer holes is better)
+        hole_score = max(0, 25 - holes * 3)
+
+        # 3. LINE COMPLETION POTENTIAL
+        line_completion_score = 0
+        for y in range(BOARD_HEIGHT):
+            filled_cells = sum(1 for cell in temp_board[y] if cell != 0)
+            if filled_cells == BOARD_WIDTH:
+                line_completion_score += 10  # Complete line bonus
+            elif filled_cells >= BOARD_WIDTH - 2:
+                line_completion_score += 5   # Nearly complete line bonus
+            elif filled_cells >= BOARD_WIDTH - 3:
+                line_completion_score += 2   # Moderately complete line bonus
+
+        # Cap line completion score at 20 points
+        line_completion_score = min(20, line_completion_score)
+
+        # 4. BUMPINESS/SMOOTHNESS
+        bumpiness = 0
+        for i in range(len(column_heights) - 1):
+            bumpiness += abs(column_heights[i] - column_heights[i + 1])
+
+        # Smoothness score (0-15 points, less bumpiness is better)
+        smoothness_score = max(0, 15 - bumpiness * 0.5)
+
+        # 5. WELL FORMATION
+        well_score = 0
+        for x in range(BOARD_WIDTH):
+            left_height = column_heights[x-1] if x > 0 else 0
+            right_height = column_heights[x+1] if x < BOARD_WIDTH-1 else 0
+            current_height = column_heights[x]
+
+            # Check if this forms a well (significantly lower than neighbors)
+            if (left_height - current_height >= 3 and right_height - current_height >= 3):
+                well_depth = min(left_height - current_height, right_height - current_height)
+                # Wells can be good for T-spins and line setups, but very deep wells are bad
+                if well_depth <= 4:
+                    well_score += well_depth * 1.5  # Moderate wells are good
+                else:
+                    well_score -= (well_depth - 4) * 2  # Very deep wells are bad
+
+        # Cap well score between -10 and 10
+        well_score = max(-10, min(10, well_score))
+
+        # 6. FLOATING CELLS (original metric)
+        floating_cells = 0
+        total_piece_cells = 0
+
+        for dy, row in enumerate(shape_matrix):
+            for dx, cell in enumerate(row):
+                if cell:
+                    total_piece_cells += 1
+                    board_x = self.piece_x + dx
+                    board_y = self.piece_y + dy
+                    # Check if below is empty (within the board)
+                    if (board_y + 1 < BOARD_HEIGHT and 
+                        0 <= board_x < BOARD_WIDTH and 
+                        temp_board[board_y + 1][board_x] == 0):
+                        floating_cells += 1
+
+        # Floating penalty (0-10 points)
+        if total_piece_cells > 0:
+            floating_score = 10 * (total_piece_cells - floating_cells) / total_piece_cells
+        else:
+            floating_score = 10
+
+        # COMBINE ALL SCORES
+        total_score = (height_score +      # 30 points max
+                       hole_score +        # 25 points max  
+                       line_completion_score + # 20 points max
+                       smoothness_score +  # 15 points max
+                       floating_score +    # 10 points max
+                       well_score)         # -10 to +10 points
+
+        # Convert to percentage (total possible: 110 points)
+        efficiency_percentage = round(min(100, max(0, (total_score / 110) * 100)))
+
+        # Store individual components for debugging
+        self.efficiency_breakdown = {
+            'height_score': height_score,
+            'hole_score': hole_score,
+            'line_completion_score': line_completion_score,
+            'smoothness_score': smoothness_score,
+            'floating_score': floating_score,
+            'well_score': well_score,
+            'total_score': total_score,
+            'max_height': max_height,
+            'avg_height': avg_height,
+            'holes': holes,
+            'bumpiness': bumpiness,
+            'floating_cells': floating_cells
+        }
+
+        self.efficiency = efficiency_percentage
+
+        # Enhanced logging
+        with open("out/out3.txt", "a") as f:
+            f.write(f"=== Efficiency Breakdown ===\n")
+            f.write(f"Height Score: {height_score:.1f}/30 (Max: {max_height}, Avg: {avg_height:.1f})\n")
+            f.write(f"Hole Score: {hole_score:.1f}/25 (Holes: {holes})\n")
+            f.write(f"Line Completion: {line_completion_score:.1f}/20\n")
+            f.write(f"Smoothness: {smoothness_score:.1f}/15 (Bumpiness: {bumpiness:.1f})\n")
+            f.write(f"Floating: {floating_score:.1f}/10 (Floating cells: {floating_cells})\n")
+            f.write(f"Wells: {well_score:.1f} (-10 to +10)\n")
+            f.write(f"Total Efficiency: {efficiency_percentage:.1f}%\n")
+            f.write(f"Column Heights: {column_heights}\n\n")
+    
+        return efficiency_percentage
 
     def drop(self):
         if not self.check_collision(dy=1):
@@ -177,7 +353,7 @@ class tEngine:
         # Write the score as an entry in a JSON array in scores.json
         score_form = {
             "score": self.score,
-            "date": datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S"), # UTC timezone if the highscore is achieved through the codespace
+            "date": datetime.datetime.now().strftime("%d/%m/%Y"), # UTC timezone if the highscore is achieved through the codespace
             "name": name,
         }
         try:

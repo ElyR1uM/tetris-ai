@@ -13,7 +13,7 @@ PIECE_COLORS = {
     'S': curses.COLOR_GREEN,
     'Z': curses.COLOR_RED,
     'J': curses.COLOR_BLUE,
-    'L': curses.COLOR_WHITE,  # substitude for orange
+    'L': 208
 }
 
 game_score = 0
@@ -29,7 +29,8 @@ def get_color_pair(engine, x, y):
     # Draws anything outside of the board as empty
     if y < 0 or y >= len(engine.board) or x < 0 or x >= len(engine.board[0]):
         return 0
-    # Check if a cell if a part of a piece
+    
+    # Check if a cell is part of the current falling piece
     for piece_y, row in enumerate(engine.piece):
         for piece_x, cell in enumerate(row):
             if cell:
@@ -37,9 +38,16 @@ def get_color_pair(engine, x, y):
                 py = engine.piece_y + piece_y
                 if px == x and py == y:
                     return curses.color_pair(list(PIECE_COLORS.keys()).index(engine.piece_type) + 1)
+    
+    # Check if it's a locked piece
     if engine.board[y][x]:
-        # Try to guess piece type from lock pattern (optional)
-        return curses.color_pair(7)  # white for locked blocks
+        piece_type = engine.board[y][x]
+        if piece_type in PIECE_COLORS:
+            return curses.color_pair(list(PIECE_COLORS.keys()).index(piece_type) + 1)
+        else:
+            # Fallback for old True values or unknown types
+            return curses.color_pair(7)  # white for locked blocks
+    
     return 0
 
 def draw_board(stdscr, engine):
@@ -77,6 +85,8 @@ def draw_board(stdscr, engine):
 
     stdscr.addstr(len(board), 0, "+" + "--" * len(board[0]) + "+")
     stdscr.addstr(len(board) + 2, 0, f"Score: {engine.score}")
+    stdscr.addstr(len(board) + 3, 0, f"Level: {engine.level}")
+    stdscr.addstr(len(board) + 4, 0, f"Efficiency: {engine.efficiency}%")
     stdscr.refresh()
 
 def main(stdscr):
@@ -95,13 +105,13 @@ def main(stdscr):
         # Handle input
         if key == ord('q'): # Quit
             break
-        elif key == curses.KEY_LEFT:
+        elif key in [curses.KEY_LEFT, ord('j')]:
             engine.move(-1)
-        elif key == curses.KEY_RIGHT:
+        elif key in [curses.KEY_RIGHT, ord('l')]:
             engine.move(1)
         elif key == curses.KEY_DOWN: # Soft drop
             engine.drop()
-        elif key == curses.KEY_UP: # Rotate
+        elif key in [curses.KEY_UP, ord('k')]: # Rotate
             engine.rotate()
         elif key == ord(' '): # Hard drop
             while not engine.check_collision(dy=1):
@@ -122,27 +132,29 @@ def main(stdscr):
             # Game Over Screen
             draw_board(stdscr, engine)
             stdscr.nodelay(False)
-            stdscr.addstr(len(engine.board) + 3, 0, "Game Over! Press any key to exit.")
-            stdscr.addstr(len(engine.board) + 4, 0, f"Final Score: {engine.score}")
-            stdscr.addstr(len(engine.board) + 5, 0, "Do you want to save your score? (y/n)")
+            stdscr.addstr(len(engine.board) + 5, 0, "Game Over!")
+            stdscr.addstr(len(engine.board) + 6, 0, f"Final Score: {engine.score}")
+            stdscr.addstr(len(engine.board) + 7, 0, "Do you want to save your score? (y/n)")
             stdscr.refresh()
 
             while True:
                 key = stdscr.getch()
                 if key in [ord('y'), ord('Y')]: # Gives the option to write a small y or a capitalised Y
                     # Ask for the player's name (KI for AI tries)
-                    stdscr.addstr(len(engine.board) + 6, 0, "Enter your name: ")
+                    stdscr.addstr(len(engine.board) + 8, 0, "Enter your name: ")
                     stdscr.refresh()
                     curses.echo()
-                    name = stdscr.getstr(len(engine.board) + 6, len("Enter your name: ") + 1, 20).decode('utf-8')
+                    name = stdscr.getstr(len(engine.board) + 8, len("Enter your name: ") + 1, 20).decode('utf-8')
                     curses.noecho()
 
+                    # Writes scores to file (obviously)
                     engine.write_scores(name)
+                    stdscr.addstr(len(engine.board) + 8, 0, "Press any button to exit.")
                     break
                 elif key in [ord('n'), ord('N')]:
-                    stdscr.addstr(len(engine.board) + 6, 0, "Score not saved. Press any button to exit.")
+                    stdscr.addstr(len(engine.board) + 9, 0, "Score not saved. Press any button to exit.")
                     break
-                elif key != -1:
+                elif key in [ord('q'), ord('Q')]:
                     break
 
             stdscr.refresh()
