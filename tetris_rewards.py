@@ -1,270 +1,221 @@
 """
-Enhanced reward calculation system for Tetris AI training
-Focuses on line clearing behavior and strategic positioning
+Optimized Reward Function for Tetris DQN Training
 """
-from tetris_engine import tEngine
+
+import numpy as np
 
 class RewardCalculator:
     def __init__(self):
-        self.engine = tEngine()
-        
-        # Dramatically improved reward weights
+        # Reward weights - tune these based on training performance
         self.weights = {
-            'survival': 0.1,  # Reduced - survival alone isn't enough
-            'game_over': -500.0,  # Reduced penalty to encourage exploration
-            
-            # MASSIVELY increased line clearing rewards
-            'lines_cleared': {
-                1: 100,    # Single line - good reward
-                2: 300,    # Double - much better
-                3: 800,    # Triple - excellent
-                4: 2000    # Tetris - outstanding!
+            'lines_cleared': 100,      # Primary objective
+            'score_increase': 0.1,     # Direct score improvement
+            'height_penalty': -0.5,    # Penalize tall stacks
+            'holes_penalty': -25,      # Strongly penalize holes
+            'bumpiness_penalty': -0.3, # Penalize uneven surface
+            'well_bonus': 2,           # Bonus for creating wells
+            'line_clear_bonus': {      # Bonus multipliers for line clears
+                1: 40,   # Single
+                2: 100,  # Double  
+                3: 300,  # Triple
+                4: 1200  # Tetris
             },
-            
-            # Strategic positioning rewards
-            'line_completion_potential': 5.0,   # Reward for almost completing lines
-            'well_formation': 2.0,              # Reward for creating wells for I-pieces
-            'piece_placement_efficiency': 1.0,   # Reward for good piece placement
-            
-            # Penalties (reduced to not dominate rewards)
-            'height_penalty': -0.1,             # Much smaller penalty
-            'hole_penalty': -1.0,               # Reduced hole penalty
-            'bumpiness_penalty': -0.05,         # Small bumpiness penalty
-            'move_penalty': -0.01,              # Tiny move penalty
-            
-            # New strategic rewards
-            'height_reduction': 3.0,            # Reward for reducing max height
-            'even_height': 0.5,                 # Reward for keeping heights even
+            'survival_bonus': 1,       # Small bonus for staying alive
+            'game_over_penalty': -200, # Heavy penalty for game over
+            'move_penalty': -0.1,      # Small penalty to encourage efficiency
         }
-        
-        # Track previous state for comparisons
-        self.prev_max_height = 0
-        self.prev_total_holes = 0
-        self.prev_lines_cleared = 0
     
-    def calculate_reward(self, previous_state, action, new_state, engine):
+    def calculate_reward(self, prev_state, action, new_state, engine):
         """
-        Enhanced reward calculation focusing on line clearing
-        """
-        reward = 0.0
+        Calculate reward based on state transition
         
-        # 1. Game over penalty (but not too harsh to allow exploration)
+        Args:
+            prev_state: Previous game state (board, piece_info)
+            action: Action taken ('left', 'right', 'down', 'rotate', 'drop')
+            new_state: New game state after action
+            engine: Game engine instance
+        """
+        reward = 0
+        
+        # Extract states
+        prev_board, prev_piece_info = prev_state
+        new_board, new_piece_info = new_state
+        
+        # 1. Game Over Penalty
         if engine.game_over:
-            reward += self.weights['game_over']
-            return reward
+            reward += self.weights['game_over_penalty']
+            return reward  # Return immediately on game over
         
-        # 2. Survival reward (small)
-        reward += self.weights['survival']
+        # 2. Lines Cleared Reward (most important)
+        lines_cleared = self._count_lines_cleared(prev_board, new_board)
+        if lines_cleared > 0:
+            # Base reward for lines
+            reward += lines_cleared * self.weights['lines_cleared']
+            # Bonus for multiple lines (encourage Tetris)
+            if lines_cleared in self.weights['line_clear_bonus']:
+                reward += self.weights['line_clear_bonus'][lines_cleared]
         
-        # 3. MAJOR LINE CLEARING REWARDS
-        lines_cleared_this_move = engine.total_cleared - self.prev_lines_cleared
-        if lines_cleared_this_move > 0:
-            line_reward = self.weights['lines_cleared'].get(lines_cleared_this_move, 0)
-            reward += line_reward
-            print(f"LINE CLEAR! {lines_cleared_this_move} lines = +{line_reward} reward")
+        # 3. Score Increase
+        if hasattr(engine, 'score') and hasattr(engine, 'prev_score'):
+            score_diff = engine.score - getattr(engine, 'prev_score', 0)
+            reward += score_diff * self.weights['score_increase']
         
-        # 4. Line completion potential - reward for almost completing lines
-        reward += self._calculate_line_potential_reward(new_state[0])
+        # 4. Board Analysis Penalties/Bonuses
+        board_metrics = self._analyze_board(new_board)
         
-        # 5. Well formation reward - encourage creating wells for I-pieces
-        reward += self._calculate_well_reward(new_state[0])
+        # Height penalty (encourage keeping board low)
+        reward += board_metrics['max_height'] * self.weights['height_penalty']
         
-        # 6. Height management rewards
-        current_heights = self._get_column_heights(new_state[0])
-        max_height = max(current_heights)
+        # Holes penalty (strongly discourage creating holes)
+        reward += board_metrics['holes'] * self.weights['holes_penalty']
         
-        # Reward for reducing maximum height
-        if max_height < self.prev_max_height:
-            reward += self.weights['height_reduction'] * (self.prev_max_height - max_height)
+        # Bumpiness penalty (encourage flat surface)
+        reward += board_metrics['bumpiness'] * self.weights['bumpiness_penalty']
         
-        # Small penalty for excessive height
-        if max_height > 15:
-            reward += self.weights['height_penalty'] * (max_height - 15)
+        # Well bonus (encourage creating wells for line clears)
+        reward += board_metrics['wells'] * self.weights['well_bonus']
         
-        # 7. Hole penalties (but not too harsh)
-        holes = self._count_holes(new_state[0])
-        new_holes = holes - self.prev_total_holes
-        if new_holes > 0:
-            reward += self.weights['hole_penalty'] * new_holes
+        # 5. Survival bonus (small reward for staying alive)
+        reward += self.weights['survival_bonus']
         
-        # 8. Bumpiness penalty (encourage smoother tops)
-        bumpiness = self._calculate_bumpiness(current_heights)
-        reward += self.weights['bumpiness_penalty'] * bumpiness
-        
-        # 9. Small move penalty to encourage efficiency
+        # 6. Move efficiency penalty
         reward += self.weights['move_penalty']
         
-        # Update tracking variables
-        self.prev_max_height = max_height
-        self.prev_total_holes = holes
-        self.prev_lines_cleared = engine.total_cleared
+        # 7. Special action bonuses
+        reward += self._action_specific_rewards(action, prev_board, new_board)
         
         return reward
     
-    def _calculate_line_potential_reward(self, board):
-        """
-        Reward for lines that are almost complete
-        This encourages the AI to work towards line clearing
-        """
-        reward = 0.0
-        board_height = len(board)
-        board_width = len(board[0]) if board else 10
+    def _count_lines_cleared(self, prev_board, new_board):
+        """Count how many lines were cleared"""
+        prev_full_lines = sum(1 for row in prev_board if all(cell != 0 and cell != ' ' for cell in row))
+        new_full_lines = sum(1 for row in new_board if all(cell != 0 and cell != ' ' for cell in row))
         
-        for y in range(board_height):
-            filled_cells = sum(1 for x in range(board_width) if board[y][x] == 1)
-            
-            # Reward based on how close to completion each line is
-            if filled_cells >= 7:  # 7+ out of 10 cells filled
-                completion_ratio = filled_cells / board_width
-                reward += self.weights['line_completion_potential'] * completion_ratio
+        # Lines cleared = reduction in full lines + any new empty rows at top
+        prev_empty_top = sum(1 for row in prev_board if all(cell == 0 or cell == ' ' for cell in row))
+        new_empty_top = sum(1 for row in new_board if all(cell == 0 or cell == ' ' for cell in row))
         
-        return reward
+        # Estimate lines cleared (this is approximate due to board representation)
+        return max(0, new_empty_top - prev_empty_top)
     
-    def _calculate_well_reward(self, board):
-        """
-        Reward for creating wells that can accommodate I-pieces (4-block verticals)
-        """
-        reward = 0.0
-        heights = self._get_column_heights(board)
+    def _analyze_board(self, board):
+        """Analyze board for various metrics"""
+        metrics = {
+            'max_height': 0,
+            'holes': 0,
+            'bumpiness': 0,
+            'wells': 0
+        }
         
-        # Look for wells (columns significantly lower than neighbors)
-        for i in range(len(heights)):
-            left_height = heights[i-1] if i > 0 else heights[i]
-            right_height = heights[i+1] if i < len(heights)-1 else heights[i]
-            current_height = heights[i]
-            
-            # If this column is 3+ blocks lower than both neighbors, it's a good well
-            well_depth = min(left_height - current_height, right_height - current_height)
-            if well_depth >= 3:
-                reward += self.weights['well_formation'] * (well_depth / 4.0)  # Normalize
+        heights = []
         
-        return reward
-    
-    def get_state_features(self, board_state, piece_info):
-        """
-        Enhanced state representation focusing on line-clearing opportunities
-        """
-        try:
-            board, piece_data = board_state, piece_info
+        # Calculate column heights and find holes
+        for col in range(len(board[0])):
+            height = 0
+            holes_in_col = 0
+            found_block = False
             
-            # Basic features
-            heights = self._get_column_heights(board)
-            holes = self._count_holes(board)
-            bumpiness = self._calculate_bumpiness(heights)
-            
-            # Enhanced features for line clearing
-            line_completion_scores = self._get_line_completion_scores(board)
-            well_positions = self._get_well_positions(heights)
-            max_height = max(heights)
-            height_variance = self._calculate_height_variance(heights)
-            
-            # Piece features
-            piece_type, piece_x, piece_y, piece_shape = piece_data
-            
-            # Create comprehensive state representation
-            state_features = (
-                tuple(heights[:10]),  # Column heights (ensure max 10)
-                int(holes),
-                int(bumpiness),
-                int(max_height),
-                int(height_variance),
-                tuple(line_completion_scores[:5]),  # Top 5 line completion scores
-                tuple(well_positions[:3]),  # Top 3 well positions
-                str(piece_type),
-                int(piece_x),
-                min(int(piece_y), 20)  # Cap piece_y to prevent explosion
-            )
-            
-            return state_features
-            
-        except Exception as e:
-            print(f"Error in enhanced state features: {e}")
-            # Safe fallback
-            return ((0,) * 10, 0, 0, 0, 0, (0,) * 5, (0,) * 3, 'I', 4, 0)
-    
-    def _get_line_completion_scores(self, board):
-        """Get completion scores for each line (how close to being cleared)"""
-        board_height = len(board)
-        board_width = len(board[0]) if board else 10
-        scores = []
-        
-        for y in range(board_height):
-            filled = sum(1 for x in range(board_width) if board[y][x] == 1)
-            scores.append(filled)
-        
-        # Return top 5 scores (most filled lines)
-        scores.sort(reverse=True)
-        return scores[:5] + [0] * (5 - len(scores[:5]))
-    
-    def _get_well_positions(self, heights):
-        """Get positions and depths of wells"""
-        wells = []
-        
-        for i in range(len(heights)):
-            left_height = heights[i-1] if i > 0 else heights[i]
-            right_height = heights[i+1] if i < len(heights)-1 else heights[i]
-            current_height = heights[i]
-            
-            well_depth = min(left_height - current_height, right_height - current_height)
-            if well_depth > 0:
-                wells.append(well_depth)
-            else:
-                wells.append(0)
-        
-        # Return top 3 well depths
-        wells.sort(reverse=True)
-        return wells[:3] + [0] * (3 - len(wells[:3]))
-    
-    def _calculate_height_variance(self, heights):
-        """Calculate variance in column heights"""
-        if not heights:
-            return 0
-        avg_height = sum(heights) / len(heights)
-        variance = sum((h - avg_height) ** 2 for h in heights) / len(heights)
-        return int(variance)
-    
-    def _get_column_heights(self, board):
-        """Get height of each column"""
-        try:
-            heights = []
-            board_height = len(board)
-            board_width = len(board[0]) if board else 10
-            
-            for x in range(board_width):
-                height = 0
-                for y in range(board_height):
-                    if board[y][x] == 1:
-                        height = board_height - y
-                        break
-                heights.append(height)
-            return heights
-        except Exception:
-            return [0] * 10
-    
-    def _count_holes(self, board):
-        """Count holes in the board"""
-        try:
-            holes = 0
-            board_height = len(board)
-            board_width = len(board[0]) if board else 10
-            
-            for x in range(board_width):
-                found_block = False
-                for y in range(board_height):
-                    if board[y][x] == 1:
+            # Scan from top to bottom
+            for row in range(len(board)):
+                cell = board[row][col]
+                if cell != 0 and cell != ' ':
+                    if not found_block:
+                        height = len(board) - row
                         found_block = True
-                    elif found_block and board[y][x] == 0:
-                        holes += 1
-            return holes
-        except Exception:
-            return 0
+                else:
+                    # Empty cell - check if it's a hole
+                    if found_block:
+                        holes_in_col += 1
+            
+            heights.append(height)
+            metrics['holes'] += holes_in_col
+        
+        metrics['max_height'] = max(heights) if heights else 0
+        
+        # Calculate bumpiness (difference between adjacent columns)
+        for i in range(len(heights) - 1):
+            metrics['bumpiness'] += abs(heights[i] - heights[i + 1])
+        
+        # Calculate wells (columns significantly lower than neighbors)
+        for i in range(len(heights)):
+            left_height = heights[i - 1] if i > 0 else 0
+            right_height = heights[i + 1] if i < len(heights) - 1 else 0
+            current_height = heights[i]
+            
+            # Well depth
+            well_depth = min(left_height, right_height) - current_height
+            if well_depth > 0:
+                metrics['wells'] += well_depth
+        
+        return metrics
     
-    def _calculate_bumpiness(self, heights):
-        """Calculate bumpiness (height differences)"""
-        try:
-            bumpiness = 0
-            for i in range(len(heights) - 1):
-                bumpiness += abs(heights[i] - heights[i + 1])
-            return bumpiness
-        except Exception:
-            return 0
+    def _action_specific_rewards(self, action, prev_board, new_board):
+        """Rewards/penalties for specific actions"""
+        reward = 0
+        
+        if action == 'drop':
+            # Small bonus for hard drops (encourages decisive play)
+            reward += 2
+        elif action == 'rotate':
+            # Small penalty for rotations (discourage excessive rotation)
+            reward -= 0.5
+        elif action == 'down':
+            # Very small bonus for soft drops
+            reward += 0.1
+        
+        return reward
+    
+    def adjust_weights(self, performance_metrics):
+        """
+        Dynamically adjust weights based on training performance
+        Call this periodically during training to optimize rewards
+        """
+        avg_score = performance_metrics.get('avg_score', 0)
+        avg_lines = performance_metrics.get('avg_lines', 0)
+        game_over_rate = performance_metrics.get('game_over_rate', 1.0)
+        
+        # If agent is dying too quickly, reduce penalties
+        if game_over_rate > 0.9:
+            self.weights['height_penalty'] *= 0.9
+            self.weights['holes_penalty'] *= 0.9
+            self.weights['survival_bonus'] *= 1.1
+        
+        # If agent is clearing lines well, increase line clear bonuses
+        if avg_lines > 1:
+            for key in self.weights['line_clear_bonus']:
+                self.weights['line_clear_bonus'][key] *= 1.05
+        
+        # If scores are improving, balance exploration vs exploitation
+        if avg_score > 1000:
+            self.weights['move_penalty'] *= 0.95  # Reduce move penalty
+    
+    def get_reward_breakdown(self, prev_state, action, new_state, engine):
+        """
+        Get detailed breakdown of reward components for debugging
+        """
+        breakdown = {}
+        
+        prev_board, prev_piece_info = prev_state
+        new_board, new_piece_info = new_state
+        
+        if engine.game_over:
+            breakdown['game_over'] = self.weights['game_over_penalty']
+            return breakdown
+        
+        # Calculate each component
+        lines_cleared = self._count_lines_cleared(prev_board, new_board)
+        if lines_cleared > 0:
+            breakdown['lines_cleared'] = lines_cleared * self.weights['lines_cleared']
+            if lines_cleared in self.weights['line_clear_bonus']:
+                breakdown['line_clear_bonus'] = self.weights['line_clear_bonus'][lines_cleared]
+        
+        board_metrics = self._analyze_board(new_board)
+        breakdown['height_penalty'] = board_metrics['max_height'] * self.weights['height_penalty']
+        breakdown['holes_penalty'] = board_metrics['holes'] * self.weights['holes_penalty']
+        breakdown['bumpiness_penalty'] = board_metrics['bumpiness'] * self.weights['bumpiness_penalty']
+        breakdown['well_bonus'] = board_metrics['wells'] * self.weights['well_bonus']
+        breakdown['survival_bonus'] = self.weights['survival_bonus']
+        breakdown['move_penalty'] = self.weights['move_penalty']
+        breakdown['action_specific'] = self._action_specific_rewards(action, prev_board, new_board)
+        
+        return breakdown
