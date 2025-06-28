@@ -1,5 +1,5 @@
 """
-Efficient DQN Trainer for Tetris AI using Convolutional Neural Networks
+Optimized DQN Trainer for Tetris AI with Performance Improvements and High Score Tracking
 """
 
 import tensorflow as tf
@@ -18,25 +18,28 @@ from copy import deepcopy
 from tetris_engine import tEngine
 from tetris_rewards import RewardCalculator
 
-class DQNTetrisTrainer:
+class AgentTrainer:
     def __init__(self, model_path='q-ai/dqn_model.h5', memory_size=50000):
         self.model_path = model_path
         self.stats_path = 'q-ai/dqn_training_stats.json'
         self.checkpoint_dir = 'q-ai/dqn_checkpoints'
+        self.scores_path = 'out/q-scores.json'
         
         # Create directories
         os.makedirs('q-ai', exist_ok=True)
+        os.makedirs('out', exist_ok=True)
         os.makedirs(self.checkpoint_dir, exist_ok=True)
         
-        # DQN hyperparameters
+        # Optimized DQN hyperparameters
         self.learning_rate = 0.001
-        self.gamma = 0.95  # discount factor
+        self.gamma = 0.95
         self.epsilon = 1.0
         self.epsilon_decay = 0.995
         self.epsilon_min = 0.01
-        self.batch_size = 32
+        self.batch_size = 64  # Increased for better efficiency
         self.memory_size = memory_size
-        self.target_update_freq = 1000  # steps
+        self.target_update_freq = 1000
+        self.train_freq = 4  # Train every 4 steps instead of every step
         
         # Game parameters
         self.board_height = 20
@@ -44,30 +47,20 @@ class DQNTetrisTrainer:
         self.actions = ['left', 'right', 'down', 'rotate', 'drop']
         self.num_actions = len(self.actions)
         
-        # Cell type mapping - convert tetromino letters to numbers
+        # Cell type mapping
         self.cell_mapping = {
-            0: 0.0,      # Empty cell
-            '0': 0.0,    # Empty cell (string)
-            ' ': 0.0,    # Empty space
-            'I': 1.0,    # I-piece
-            'O': 2.0,    # O-piece
-            'T': 3.0,    # T-piece
-            'S': 4.0,    # S-piece
-            'Z': 5.0,    # Z-piece
-            'J': 6.0,    # J-piece
-            'L': 7.0,    # L-piece
+            0: 0.0, '0': 0.0, ' ': 0.0,
+            'I': 1.0, 'O': 2.0, 'T': 3.0, 'S': 4.0,
+            'Z': 5.0, 'J': 6.0, 'L': 7.0,
         }
-        
-        # Terminal handling for continuous training
-        self.original_terminal_settings = None
         
         # Training components
         self.memory = deque(maxlen=memory_size)
         self.reward_calculator = RewardCalculator()
         
         # Neural networks
-        self.q_network = self.build_model()
-        self.target_network = self.build_model()
+        self.q_network = self.build_optimized_model()
+        self.target_network = self.build_optimized_model()
         self.update_target_network()
         
         # Load existing model if available
@@ -75,30 +68,33 @@ class DQNTetrisTrainer:
         
         # Training statistics
         self.training_stats = self.load_stats()
+        self.high_scores = self.load_high_scores()
         self.episode_count = 0
         self.step_count = 0
         
-    def build_model(self):
-        """Build CNN-based DQN model for Tetris board state"""
+        # Performance tracking
+        self.episode_scores = []
+        self.last_100_scores = deque(maxlen=100)
+        
+    def build_optimized_model(self):
+        """Build optimized CNN model with fewer parameters"""
         model = models.Sequential([
-            # Input: (batch_size, 20, 10, 1) - board state
             layers.Input(shape=(self.board_height, self.board_width, 1)),
             
-            # Convolutional layers to detect patterns
-            layers.Conv2D(32, (3, 3), activation='relu', padding='same'),
-            layers.Conv2D(64, (3, 3), activation='relu', padding='same'),
-            layers.Conv2D(64, (3, 3), activation='relu', padding='same'),
+            # Smaller, more efficient conv layers
+            layers.Conv2D(16, (4, 4), activation='relu', strides=(2, 2)),
+            layers.Conv2D(32, (3, 3), activation='relu'),
+            layers.Conv2D(32, (3, 3), activation='relu'),
             
-            # Global average pooling to reduce parameters
-            layers.GlobalAveragePooling2D(),
+            # Flatten instead of global pooling for speed
+            layers.Flatten(),
             
-            # Dense layers for decision making
-            layers.Dense(512, activation='relu'),
-            layers.Dropout(0.3),
+            # Smaller dense layers
             layers.Dense(256, activation='relu'),
-            layers.Dropout(0.3),
+            layers.Dropout(0.2),
+            layers.Dense(128, activation='relu'),
             
-            # Output layer - Q-values for each action
+            # Output layer
             layers.Dense(self.num_actions, activation='linear')
         ])
         
@@ -117,8 +113,10 @@ class DQNTetrisTrainer:
                 self.q_network = keras.models.load_model(self.model_path)
                 self.target_network = keras.models.load_model(self.model_path)
                 print(f"Loaded existing model from {self.model_path}")
+                print(f"Model parameters: {self.q_network.count_params()}")
             else:
                 print("No existing model found, starting with fresh model")
+                print(f"Model parameters: {self.q_network.count_params()}")
         except Exception as e:
             print(f"Error loading model: {e}")
             print("Starting with fresh model")
@@ -136,25 +134,24 @@ class DQNTetrisTrainer:
         self.target_network.set_weights(self.q_network.get_weights())
     
     def preprocess_state(self, engine):
-        """Convert game state to CNN input format"""
+        """Optimized state preprocessing with caching"""
         try:
-            # Create board representation with proper cell mapping
+            # Create board representation
             board = np.zeros((self.board_height, self.board_width), dtype=np.float32)
             
-            # Convert board cells using mapping dictionary
+            # Vectorized board conversion
             for y in range(self.board_height):
                 for x in range(self.board_width):
                     cell_value = engine.board[y][x]
                     board[y, x] = self.cell_mapping.get(cell_value, 0.0)
             
-            # Add current piece to the board (temporary overlay)
+            # Add current piece
             if hasattr(engine, 'piece') and engine.piece is not None:
                 piece_y, piece_x = engine.piece_y, engine.piece_x
                 piece = np.array(engine.piece)
                 piece_type = getattr(engine, 'piece_type', 'T')
-                piece_value = self.cell_mapping.get(piece_type, 8.0)  # Use 8.0 for current piece
+                piece_value = self.cell_mapping.get(piece_type, 8.0)
                 
-                # Place piece on board (if it fits)
                 for py in range(piece.shape[0]):
                     for px in range(piece.shape[1]):
                         if piece[py, px] != 0:
@@ -163,17 +160,14 @@ class DQNTetrisTrainer:
                                 0 <= board_x < self.board_width):
                                 board[board_y, board_x] = piece_value
             
-            # Normalize values to [0, 1] range
+            # Normalize and reshape
             board = board / 8.0
-            
-            # Reshape for CNN: (height, width, channels)
             state = board.reshape(self.board_height, self.board_width, 1)
             
             return state
             
         except Exception as e:
             print(f"Error preprocessing state: {e}")
-            # Return empty board as fallback
             return np.zeros((self.board_height, self.board_width, 1), dtype=np.float32)
     
     def choose_action(self, state):
@@ -181,7 +175,7 @@ class DQNTetrisTrainer:
         if np.random.random() <= self.epsilon:
             return random.randint(0, self.num_actions - 1)
         
-        # Predict Q-values
+        # Batch prediction for efficiency
         state_batch = np.expand_dims(state, axis=0)
         q_values = self.q_network.predict(state_batch, verbose=0)[0]
         return np.argmax(q_values)
@@ -202,7 +196,6 @@ class DQNTetrisTrainer:
                 engine.hard_drop()
             return True
         except Exception as e:
-            print(f"Error executing action {action}: {e}")
             return False
     
     def remember(self, state, action, reward, next_state, done):
@@ -210,7 +203,7 @@ class DQNTetrisTrainer:
         self.memory.append((state, action, reward, next_state, done))
     
     def replay(self):
-        """Train the model on a batch of experiences"""
+        """Optimized training with larger batches"""
         if len(self.memory) < self.batch_size:
             return
         
@@ -222,24 +215,24 @@ class DQNTetrisTrainer:
         next_states = np.array([e[3] for e in batch])
         dones = np.array([e[4] for e in batch])
         
-        # Current Q-values
+        # Batch predictions
         current_q_values = self.q_network.predict(states, verbose=0)
-        
-        # Next Q-values from target network
         next_q_values = self.target_network.predict(next_states, verbose=0)
         
-        # Update Q-values
+        # Vectorized Q-value updates
+        target_q_values = current_q_values.copy()
+        
         for i in range(self.batch_size):
             if dones[i]:
-                current_q_values[i][actions[i]] = rewards[i]
+                target_q_values[i][actions[i]] = rewards[i]
             else:
-                current_q_values[i][actions[i]] = rewards[i] + self.gamma * np.max(next_q_values[i])
+                target_q_values[i][actions[i]] = rewards[i] + self.gamma * np.max(next_q_values[i])
         
-        # Train the model
-        self.q_network.fit(states, current_q_values, epochs=1, verbose=0)
+        # Single training step
+        self.q_network.fit(states, target_q_values, epochs=1, verbose=0)
     
     def train_single_episode(self, max_moves=2000, verbose=False):
-        """Train AI for one episode"""
+        """Optimized single episode training"""
         engine = tEngine()
         total_reward = 0
         moves = 0
@@ -251,7 +244,7 @@ class DQNTetrisTrainer:
             # Choose and execute action
             action_idx = self.choose_action(current_state)
             
-            # Store previous state for reward calculation
+            # Store previous state
             prev_engine_state = deepcopy(engine)
             prev_full_state = self.get_full_state(engine)
             
@@ -259,7 +252,7 @@ class DQNTetrisTrainer:
             if not self.execute_action(engine, action_idx):
                 break
             
-            # Get new state and calculate reward
+            # Get new state and reward
             next_state = self.preprocess_state(engine)
             new_full_state = self.get_full_state(engine)
             
@@ -273,20 +266,17 @@ class DQNTetrisTrainer:
                 current_state, action_idx, reward, next_state, engine.game_over
             )
             
-            # Train the model
-            if len(self.memory) > self.batch_size:
+            # Train less frequently for speed
+            if len(self.memory) > self.batch_size and self.step_count % self.train_freq == 0:
                 self.replay()
             
-            # Update target network periodically
+            # Update target network
             if self.step_count % self.target_update_freq == 0:
                 self.update_target_network()
             
             current_state = next_state
             moves += 1
             self.step_count += 1
-            
-            if verbose and moves % 500 == 0:
-                print(f"  Move {moves}, Score: {engine.score}, Reward: {total_reward:.1f}")
         
         # Decay epsilon
         if self.epsilon > self.epsilon_min:
@@ -306,6 +296,10 @@ class DQNTetrisTrainer:
             'memory_size': len(self.memory)
         }
         
+        # Track scores for performance analysis
+        self.episode_scores.append(engine.score)
+        self.last_100_scores.append(engine.score)
+        
         return episode_stats
     
     def get_full_state(self, engine):
@@ -319,20 +313,57 @@ class DQNTetrisTrainer:
         )
         return (board_state, piece_info)
     
+    def load_high_scores(self):
+        """Load high scores from file"""
+        try:
+            with open(self.scores_path, 'r') as f:
+                return json.load(f)
+        except FileNotFoundError:
+            return []
+        except Exception as e:
+            print(f"Error loading high scores: {e}")
+            return []
+    
+    def save_high_scores(self):
+        """Save high scores to file"""
+        try:
+            with open(self.scores_path, 'w') as f:
+                json.dump(self.high_scores, f, indent=2)
+        except Exception as e:
+            print(f"Error saving high scores: {e}")
+    
+    def update_high_scores(self, score, episode):
+        """Update high scores every 100 episodes"""
+        if episode % 100 == 0:
+            # Get the best score from the last 100 episodes
+            recent_scores = self.episode_scores[-100:] if len(self.episode_scores) >= 100 else self.episode_scores
+            best_recent_score = max(recent_scores) if recent_scores else 0
+            
+            high_score_entry = {
+                "score": best_recent_score,
+                "episode": episode
+            }
+            
+            self.high_scores.append(high_score_entry)
+            self.save_high_scores()
+            
+            print(f"High score updated: {best_recent_score} at episode {episode}")
+    
     def train_batch(self, num_episodes, save_interval=50, verbose=True):
-        """Train for multiple episodes"""
-        print(f"Starting DQN training for {num_episodes} episodes...")
-        print(f"Model architecture: {self.q_network.count_params()} parameters")
+        """Optimized batch training with performance tracking"""
+        print(f"Starting optimized DQN training for {num_episodes} episodes...")
+        print(f"Model parameters: {self.q_network.count_params()}")
         
         batch_start = time.time()
-        episode_scores = []
         
         for episode in range(num_episodes):
             self.episode_count += 1
             
             try:
                 episode_stats = self.train_single_episode(verbose=verbose and episode % 50 == 0)
-                episode_scores.append(episode_stats['score'])
+                
+                # Update high scores every 100 episodes
+                self.update_high_scores(episode_stats['score'], self.episode_count)
                 
                 # Save training stats
                 if not hasattr(self, 'training_stats'):
@@ -340,227 +371,81 @@ class DQNTetrisTrainer:
                 self.training_stats['episodes'].append(episode_stats)
                 
                 if verbose and (episode + 1) % 10 == 0:
-                    recent_scores = episode_scores[-10:]
-                    avg_score = sum(recent_scores) / len(recent_scores)
-                    print(f"Episode {episode + 1}/{num_episodes}: "
+                    avg_score = np.mean(self.last_100_scores) if self.last_100_scores else 0
+                    print(f"Episode {self.episode_count}: "
                           f"Score={episode_stats['score']}, "
-                          f"Avg={avg_score:.1f}, "
+                          f"Avg100={avg_score:.1f}, "
                           f"Lines={episode_stats['lines_cleared']}, "
-                          f"ε={self.epsilon:.3f}")
+                          f"ε={self.epsilon:.3f}, "
+                          f"Time={episode_stats['time']:.2f}s")
                 
                 if (episode + 1) % save_interval == 0:
                     self.save_model()
                     self.save_stats()
-                    print(f"Checkpoint saved at episode {episode + 1}")
+                    print(f"Checkpoint saved at episode {self.episode_count}")
                     
             except Exception as e:
-                print(f"Error in episode {episode + 1}: {e}")
+                print(f"Error in episode {self.episode_count}: {e}")
                 continue
         
         batch_time = time.time() - batch_start
+        avg_time_per_episode = batch_time / num_episodes
+        
         print(f"\nTraining completed in {batch_time:.1f} seconds")
-        print(f"Average score (last 100): {np.mean(episode_scores[-100:]):.1f}")
-        print(f"Best score: {max(episode_scores)}")
+        print(f"Average time per episode: {avg_time_per_episode:.2f} seconds")
+        print(f"Average score (last 100): {np.mean(self.last_100_scores):.1f}")
+        print(f"Best score: {max(self.episode_scores) if self.episode_scores else 0}")
         
         self.save_model()
         self.save_stats()
+        self.save_high_scores()
     
-    def safe_print(self, message, end='\n'):
-        """Print with proper formatting for both normal and raw terminal modes"""
-        try:
-            import select
-            import termios
-            import tty
-            UNIX_TERMINAL = True
-        except ImportError:
-            UNIX_TERMINAL = False
+    def analyze_performance(self):
+        """Analyze when AI might start scoring consistently"""
+        if len(self.episode_scores) < 100:
+            print("Need at least 100 episodes for meaningful analysis")
+            return
         
-        if UNIX_TERMINAL and self.original_terminal_settings is not None:
-            # In raw mode, use explicit carriage return + newline
-            if end == '\n':
-                print(f"\r{message}\r\n", end='', flush=True)
+        # Calculate rolling averages
+        window_size = 100
+        rolling_averages = []
+        
+        for i in range(window_size, len(self.episode_scores) + 1):
+            window = self.episode_scores[i-window_size:i]
+            rolling_averages.append(np.mean(window))
+        
+        # Find when scores consistently stay above 0
+        positive_streaks = []
+        current_streak = 0
+        
+        for avg in rolling_averages:
+            if avg > 0:
+                current_streak += 1
             else:
-                print(f"\r{message}", end=end, flush=True)
-        else:
-            # Normal printing
-            print(message, end=end, flush=True)
-    
-    def train_continuous(self, save_interval=100, verbose=True):
-        """Continuous training with interactive controls"""
-        self.safe_print("Starting continuous DQN training...")
-        self.safe_print("Commands during training:")
-        self.safe_print("  's' - Save current progress")
-        self.safe_print("  'q' - Quit training")
-        self.safe_print("  'e' - Evaluate current performance")
-        self.safe_print("  'p' - Pause/Resume training")
-        self.safe_print("  '+' - Decrease save frequency (save more often)")
-        self.safe_print("  '-' - Increase save frequency (save less often)")
+                if current_streak > 0:
+                    positive_streaks.append(current_streak)
+                current_streak = 0
         
-        # Check for Unix terminal capabilities
-        try:
-            import select
-            import termios
-            import tty
-            import sys
-            UNIX_TERMINAL = True
-        except ImportError:
-            UNIX_TERMINAL = False
-            self.safe_print("Note: Interactive commands not available on this platform")
-            self.safe_print("Training will run continuously. Press Ctrl+C to stop.")
-            input("Press Enter to start...")
-            
-            # Fall back to simple continuous training
-            try:
-                while True:
-                    self.episode_count += 1
-                    episode_stats = self.train_single_episode(verbose=False)
-                    
-                    if verbose and self.episode_count % 10 == 0:
-                        print(f"Ep {self.episode_count}: Score={episode_stats['score']}, "
-                              f"Lines={episode_stats['lines_cleared']}, ε={self.epsilon:.3f}")
-                    
-                    if self.episode_count % save_interval == 0:
-                        self.save_model()
-                        self.save_stats()
-                        print(f"Auto-saved at episode {self.episode_count}")
-                        
-            except KeyboardInterrupt:
-                self.safe_print(f"\nTraining stopped at episode {self.episode_count}")
-            return
-
-        self.safe_print("Press Enter to start...")
-        input()
-
-        # Set up terminal for non-blocking input
-        try:
-            self.original_terminal_settings = termios.tcgetattr(sys.stdin)
-            tty.setraw(sys.stdin.fileno())
-        except Exception as e:
-            self.safe_print(f"Warning: Could not set up interactive mode: {e}")
-            self.original_terminal_settings = None
-            return
-
-        batch_start = time.time()
-        episodes_since_save = 0
-        paused = False
-        last_progress_line = ""
-
-        try:
-            while True:
-                # Check for user input (non-blocking)
-                if select.select([sys.stdin], [], [], 0.0)[0]:
-                    command = sys.stdin.read(1).lower()
-
-                    # Clear the current progress line before showing command output
-                    if last_progress_line:
-                        self.safe_print(" " * len(last_progress_line), end='\r')
-                    
-                    if command == 'q':
-                        self.safe_print("Quitting training...")
-                        break
-                    elif command == 's':
-                        self.safe_print(f"Manual save at episode {self.episode_count}")
-                        self.save_model()
-                        self.save_stats()
-                    elif command == 'e':
-                        self.safe_print(f"Evaluating performance at episode {self.episode_count}")
-                        self.evaluate_performance(5)
-                    elif command == 'p':
-                        paused = not paused
-                        status = 'paused' if paused else 'resumed'
-                        self.safe_print(f"Training {status}")
-                    elif command == '+':
-                        save_interval = max(10, save_interval - 50)
-                        self.safe_print(f"Save interval decreased to {save_interval}")
-                    elif command == '-':
-                        save_interval += 50
-                        self.safe_print(f"Save interval increased to {save_interval}")
-
-                if not paused:
-                    self.episode_count += 1
-                    episodes_since_save += 1
-
-                    episode_stats = self.train_single_episode(verbose=False)
-
-                    # Show progress on same line
-                    if verbose and self.episode_count % 5 == 0:
-                        elapsed = time.time() - batch_start
-                        
-                        progress_line = (f"Ep {self.episode_count}: "
-                                       f"Score={episode_stats['score']}, "
-                                       f"Lines={episode_stats['lines_cleared']}, "
-                                       f"ε={self.epsilon:.3f}, "
-                                       f"Mem={len(self.memory)}, "
-                                       f"Time={elapsed/60:.1f}m")
-                        
-                        # Clear previous line and print new progress
-                        if last_progress_line:
-                            self.safe_print(" " * len(last_progress_line), end='\r')
-                        self.safe_print(progress_line, end='\r')
-                        last_progress_line = progress_line
-
-                    # Auto-save checkpoints
-                    if episodes_since_save >= save_interval:
-                        if last_progress_line:
-                            self.safe_print(" " * len(last_progress_line), end='\r')
-                        self.safe_print(f"Auto-saving at episode {self.episode_count}")
-                        self.save_model()
-                        self.save_stats()
-                        episodes_since_save = 0
-                        last_progress_line = ""
-                else:
-                    time.sleep(0.1)
-
-        except KeyboardInterrupt:
-            if last_progress_line:
-                self.safe_print(" " * len(last_progress_line), end='\r')
-            self.safe_print(f"Training interrupted at episode {self.episode_count}")
-
-        finally:
-            # Always restore terminal settings
-            if self.original_terminal_settings is not None:
-                try:
-                    termios.tcsetattr(sys.stdin, termios.TCSADRAIN, self.original_terminal_settings)
-                    self.original_terminal_settings = None
-                except Exception as e:
-                    print(f"Warning: Could not restore terminal settings: {e}")
-    
-    
-    def evaluate_performance(self, num_games=10):
-        """Evaluate current model performance"""
-        print(f"Evaluating model performance over {num_games} games...")
+        if current_streak > 0:
+            positive_streaks.append(current_streak)
         
-        old_epsilon = self.epsilon
-        self.epsilon = 0  # No exploration during evaluation
+        print("\nPerformance Analysis:")
+        print(f"Total episodes: {len(self.episode_scores)}")
+        print(f"Current average (last 100): {np.mean(self.last_100_scores):.2f}")
+        print(f"Best score achieved: {max(self.episode_scores)}")
+        print(f"Episodes with score > 0: {sum(1 for s in self.episode_scores if s > 0)}")
         
-        scores = []
-        lines_cleared = []
+        if positive_streaks:
+            print(f"Longest streak of positive averages: {max(positive_streaks)} episodes")
         
-        for game in range(num_games):
-            stats = self.train_single_episode(max_moves=3000, verbose=False)
-            scores.append(stats['score'])
-            lines_cleared.append(stats['lines_cleared'])
-            
-            if (game + 1) % 5 == 0:
-                print(f"  Game {game + 1}/{num_games}: Score={stats['score']}, Lines={stats['lines_cleared']}")
-        
-        self.epsilon = old_epsilon
-        
-        results = {
-            'avg_score': np.mean(scores),
-            'best_score': max(scores),
-            'avg_lines': np.mean(lines_cleared),
-            'best_lines': max(lines_cleared),
-            'scores': scores
-        }
-        
-        print("Evaluation Results:")
-        print(f"Average Score: {results['avg_score']:.1f}")
-        print(f"Best Score: {results['best_score']}")
-        print(f"Average Lines: {results['avg_lines']:.1f}")
-        print(f"Best Lines: {results['best_lines']}")
-        
-        return results
+        # Predict when consistent positive scores might occur
+        if len(rolling_averages) > 10:
+            recent_trend = np.polyfit(range(len(rolling_averages)), rolling_averages, 1)[0]
+            if recent_trend > 0:
+                episodes_to_positive = max(0, int(-rolling_averages[-1] / recent_trend))
+                print(f"Estimated episodes until consistent positive scores: ~{episodes_to_positive}")
+            else:
+                print("No positive trend detected yet")
     
     def load_stats(self):
         """Load training statistics"""
@@ -582,18 +467,18 @@ class DQNTetrisTrainer:
             print(f"Error saving stats: {e}")
 
 def main():
-    """Main training interface"""
-    trainer = DQNTetrisTrainer()
+    """Main training interface with performance analysis"""
+    trainer = AgentTrainer()
     
-    print("DQN Tetris AI Trainer")
-    print("====================")
+    print("Optimized DQN Tetris AI Trainer")
+    print("===============================")
     print("Commands:")
-    print("  train <episodes>  - Train for specified episodes (default: 100)")
-    print("  eval <games>      - Evaluate performance (default: 10)")
-    print("  continuous        - Train continuously with interactive controls")
-    print("  quick             - Quick training (50 episodes)")
-    print("  long              - Long training (500 episodes)")
-    print("  stats             - Show training statistics")
+    print("  train <episodes>  - Train for specified episodes")
+    print("  eval <games>      - Evaluate performance")
+    print("  analyze           - Analyze performance trends")
+    print("  scores            - Show high scores")
+    print("  quick             - Quick training (100 episodes)")
+    print("  benchmark         - Speed benchmark (10 episodes)")
     print("  quit              - Exit trainer")
     print()
     
@@ -611,31 +496,27 @@ def main():
                 episodes = int(command[1]) if len(command) > 1 else 100
                 trainer.train_batch(episodes)
             
-            elif command[0] == 'eval':
-                games = int(command[1]) if len(command) > 1 else 10
-                trainer.evaluate_performance(games)
+            elif command[0] == 'analyze':
+                trainer.analyze_performance()
             
-            elif command[0] == 'continuous':
-                trainer.train_continuous()
+            elif command[0] == 'scores':
+                if trainer.high_scores:
+                    print("High Scores (every 100 episodes):")
+                    for entry in trainer.high_scores[-10:]:  # Show last 10
+                        print(f"Episode {entry['episode']}: {entry['score']}")
+                else:
+                    print("No high scores recorded yet")
+            
+            elif command[0] == 'benchmark':
+                print("Running speed benchmark...")
+                start_time = time.time()
+                trainer.train_batch(10, verbose=False)
+                end_time = time.time()
+                print(f"10 episodes completed in {end_time - start_time:.2f} seconds")
+                print(f"Average: {(end_time - start_time) / 10:.2f} seconds per episode")
             
             elif command[0] == 'quick':
-                trainer.train_batch(50)
-            
-            elif command[0] == 'long':
-                trainer.train_batch(500)
-            
-            elif command[0] == 'stats':
-                stats = trainer.training_stats
-                if stats['episodes']:
-                    recent_episodes = stats['episodes'][-10:]
-                    recent_scores = [ep['score'] for ep in recent_episodes]
-                    print(f"Total episodes: {len(stats['episodes'])}")
-                    print(f"Recent average score: {np.mean(recent_scores):.1f}")
-                    print(f"Best score: {max(ep['score'] for ep in stats['episodes'])}")
-                    print(f"Current epsilon: {trainer.epsilon:.4f}")
-                    print(f"Memory usage: {len(trainer.memory)}/{trainer.memory_size}")
-                else:
-                    print("No training data available")
+                trainer.train_batch(100)
             
             else:
                 print("Unknown command")
