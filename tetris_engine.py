@@ -127,7 +127,12 @@ class tEngine:
         for y, row in enumerate(self.piece):
             for x, cell in enumerate(row):
                 if cell:
-                    self.board[self.piece_y + y][self.piece_x + x] = 1
+                    board_x = self.piece_x + x
+                    board_y = self.piece_y + y
+                    if 0 <= board_x < BOARD_WIDTH and 0 <= board_y < BOARD_HEIGHT:
+                        # Store the piece type instead of just True
+                        self.board[board_y][board_x] = self.piece_type
+                    #self.board[self.piece_y + y][self.piece_x + x] = 1
         self.calculate_efficiency()
 
     # Removes fully filled lines and shifts the board down
@@ -225,7 +230,7 @@ class tEngine:
         # 3. LINE COMPLETION POTENTIAL
         line_completion_score = 0
         for y in range(BOARD_HEIGHT):
-            filled_cells = sum(temp_board[y])
+            filled_cells = sum(1 for cell in temp_board[y] if cell != 0)
             if filled_cells == BOARD_WIDTH:
                 line_completion_score += 10  # Complete line bonus
             elif filled_cells >= BOARD_WIDTH - 2:
