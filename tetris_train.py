@@ -202,7 +202,7 @@ class AgentTrainer:
         ])
         
         model.compile(
-            optimizer=Adam(learning_rate=self.learning_rate),
+            optimizer=Adam(learning_rate=self.learning_rate), # type: ignore
             loss='mse',
             metrics=['mae']
         )
@@ -216,10 +216,10 @@ class AgentTrainer:
                 self.q_network = keras.models.load_model(self.model_path)
                 self.target_network = keras.models.load_model(self.model_path)
                 print(f"Loaded existing model from {self.model_path}")
-                print(f"Model parameters: {self.q_network.count_params()}")
+                print(f"Model parameters: {self.q_network.count_params()}") # type: ignore
             else:
                 print("No existing model found, starting with fresh model")
-                print(f"Model parameters: {self.q_network.count_params()}")
+                print(f"Model parameters: {self.q_network.count_params()}") # type: ignore
         except Exception as e:
             print(f"Error loading model: {e}")
             print("Starting with fresh model")
@@ -227,14 +227,14 @@ class AgentTrainer:
     def save_model(self):
         """Save the trained model"""
         try:
-            self.q_network.save(self.model_path)
+            self.q_network.save(self.model_path) # type: ignore
             print(f"Model saved to {self.model_path}")
         except Exception as e:
             print(f"Error saving model: {e}")
     
     def update_target_network(self):
         """Copy weights from main network to target network"""
-        self.target_network.set_weights(self.q_network.get_weights())
+        self.target_network.set_weights(self.q_network.get_weights()) # type: ignore
     
     def preprocess_state(self, engine):
         """Optimized state preprocessing with caching"""
@@ -282,7 +282,7 @@ class AgentTrainer:
         
         # Batch prediction for efficiency
         state_batch = np.expand_dims(state, axis=0)
-        q_values = self.q_network.predict(state_batch, verbose=0)[0]
+        q_values = self.q_network.predict(state_batch, verbose=0)[0] # type: ignore
         return np.argmax(q_values)
     
     def execute_action(self, engine, action_idx):
@@ -321,8 +321,8 @@ class AgentTrainer:
         dones = np.array([e[4] for e in batch])
         
         # Batch predictions
-        current_q_values = self.q_network.predict(states, verbose=0)
-        next_q_values = self.target_network.predict(next_states, verbose=0)
+        current_q_values = self.q_network.predict(states, verbose=0) # type: ignore
+        next_q_values = self.target_network.predict(next_states, verbose=0) # type: ignore
         
         # Vectorized Q-value updates
         target_q_values = current_q_values.copy()
@@ -334,7 +334,7 @@ class AgentTrainer:
                 target_q_values[i][actions[i]] = rewards[i] + self.gamma * np.max(next_q_values[i])
         
         # Single training step
-        self.q_network.fit(states, target_q_values, epochs=1, verbose=0)
+        self.q_network.fit(states, target_q_values, epochs=1, verbose=0) # type: ignore
     
     def train_single_episode(self, max_moves=2000, verbose=False):
         """Optimized single episode training with RBED"""
@@ -470,7 +470,7 @@ class AgentTrainer:
         decay_strategy = "RBED" if self.use_rbed else "Traditional"
         print(f"Starting optimized DQN training for {num_episodes} episodes...")
         print(f"Epsilon decay strategy: {decay_strategy}")
-        print(f"Model parameters: {self.q_network.count_params()}")
+        print(f"Model parameters: {self.q_network.count_params()}") # type: ignore
         
         if self.use_rbed:
             print(f"RBED Settings:")
@@ -548,7 +548,7 @@ class AgentTrainer:
         print("Starting continuous training mode...")
         print(f"Epsilon decay strategy: {decay_strategy}")
         print("Press Ctrl+C to stop training gracefully")
-        print(f"Model parameters: {self.q_network.count_params()}")
+        print(f"Model parameters: {self.q_network.count_params()}") # type: ignore
         print("Status updates every", status_interval, "episodes")
         print("Auto-save every", save_interval, "episodes")
         

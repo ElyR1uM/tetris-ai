@@ -131,7 +131,7 @@ class tEngine:
                     board_y = self.piece_y + y
                     if 0 <= board_x < BOARD_WIDTH and 0 <= board_y < BOARD_HEIGHT:
                         # Store the piece type instead of just True
-                        self.board[board_y][board_x] = self.piece_type
+                        self.board[board_y][board_x] = self.piece_type # type: ignore
                     #self.board[self.piece_y + y][self.piece_x + x] = 1
         self.calculate_efficiency()
 
