@@ -1,5 +1,5 @@
 """
-Optimized DQN Trainer for Tetris AI with Performance Improvements and High Score Tracking
+Optimized DQN Trainer for Tetris AI with Reward-Based Epsilon Decay (RBED)
 """
 
 import tensorflow as tf
@@ -33,13 +33,31 @@ class AgentTrainer:
         # Optimized DQN hyperparameters
         self.learning_rate = 0.001
         self.gamma = 0.95
+        
+        # Traditional epsilon decay parameters (kept for compatibility)
         self.epsilon = 1.0
-        self.epsilon_decay = 0.995
-        self.epsilon_min = 0.01
-        self.batch_size = 64  # Increased for better efficiency
+        self.epsilon_decay = 0.9995
+        self.epsilon_min = 0.05
+        
+        # Reward-Based Epsilon Decay (RBED) parameters
+        self.use_rbed = True
+        self.rbed_epsilon = 1.0
+        self.rbed_epsilon_min = 0.05
+        self.rbed_reward_threshold = 0  # Start with 0 for Tetris (can go negative)
+        self.rbed_reward_increment = 50  # Increase threshold by 50 points each time
+        self.rbed_epsilon_delta = 0.05  # Decrease epsilon by this amount when threshold is met
+        self.rbed_smoothing_window = 10  # Use average of last N episodes for stability
+        
+        # RBED tracking
+        self.rbed_recent_rewards = deque(maxlen=self.rbed_smoothing_window)
+        self.rbed_thresholds_met = 0
+        self.rbed_last_decay_episode = 0
+        
+        # Other training parameters
+        self.batch_size = 64
         self.memory_size = memory_size
         self.target_update_freq = 1000
-        self.train_freq = 4  # Train every 4 steps instead of every step
+        self.train_freq = 4
         
         # Game parameters
         self.board_height = 20
@@ -80,6 +98,79 @@ class AgentTrainer:
         self.continuous_training = False
         self.stop_training = False
         
+    def configure_rbed(self, initial_threshold=0, reward_increment=50, epsilon_delta=0.05, 
+                      smoothing_window=10, min_epsilon=0.05):
+        """Configure Reward-Based Epsilon Decay parameters"""
+        self.rbed_reward_threshold = initial_threshold
+        self.rbed_reward_increment = reward_increment
+        self.rbed_epsilon_delta = epsilon_delta
+        self.rbed_smoothing_window = smoothing_window
+        self.rbed_epsilon_min = min_epsilon
+        
+        # Reinitialize tracking
+        self.rbed_recent_rewards = deque(maxlen=self.rbed_smoothing_window)
+        self.rbed_thresholds_met = 0
+        self.rbed_last_decay_episode = 0
+        
+        print(f"RBED configured:")
+        print(f"  Initial threshold: {initial_threshold}")
+        print(f"  Reward increment: {reward_increment}")
+        print(f"  Epsilon delta: {epsilon_delta}")
+        print(f"  Smoothing window: {smoothing_window}")
+        print(f"  Minimum epsilon: {min_epsilon}")
+    
+    def get_current_epsilon(self):
+        """Get the current epsilon value based on selected strategy"""
+        if self.use_rbed:
+            return max(self.rbed_epsilon, self.rbed_epsilon_min)
+        else:
+            return max(self.epsilon, self.epsilon_min)
+    
+    def update_epsilon_rbed(self, episode_reward):
+        """Update epsilon using Reward-Based Epsilon Decay"""
+        # Add reward to recent rewards buffer
+        self.rbed_recent_rewards.append(episode_reward)
+        
+        # Only proceed if we have enough samples for smoothing
+        if len(self.rbed_recent_rewards) < self.rbed_smoothing_window:
+            return False
+        
+        # Calculate smoothed reward (average of recent episodes)
+        smoothed_reward = np.mean(self.rbed_recent_rewards)
+        
+        # Check if we should decay epsilon
+        if (self.rbed_epsilon > self.rbed_epsilon_min and 
+            smoothed_reward >= self.rbed_reward_threshold):
+            
+            # Decay epsilon
+            old_epsilon = self.rbed_epsilon
+            self.rbed_epsilon = max(
+                self.rbed_epsilon - self.rbed_epsilon_delta,
+                self.rbed_epsilon_min
+            )
+            
+            # Update threshold for next decay
+            self.rbed_reward_threshold += self.rbed_reward_increment
+            self.rbed_thresholds_met += 1
+            self.rbed_last_decay_episode = self.episode_count
+            
+            print(f"\n🎯 RBED Epsilon Decay Triggered!")
+            print(f"  Episode: {self.episode_count}")
+            print(f"  Smoothed reward: {smoothed_reward:.1f}")
+            print(f"  Threshold met: {self.rbed_reward_threshold - self.rbed_reward_increment}")
+            print(f"  Epsilon: {old_epsilon:.4f} → {self.rbed_epsilon:.4f}")
+            print(f"  Next threshold: {self.rbed_reward_threshold}")
+            print(f"  Thresholds met so far: {self.rbed_thresholds_met}")
+            
+            return True
+        
+        return False
+    
+    def update_epsilon_traditional(self):
+        """Update epsilon using traditional exponential decay"""
+        if self.epsilon > self.epsilon_min:
+            self.epsilon *= self.epsilon_decay
+    
     def build_optimized_model(self):
         """Build optimized CNN model with fixed architecture to prevent dimension errors"""
         model = models.Sequential([
@@ -183,8 +274,10 @@ class AgentTrainer:
             return np.zeros((self.board_height, self.board_width, 1), dtype=np.float32)
     
     def choose_action(self, state):
-        """Choose action using epsilon-greedy policy"""
-        if np.random.random() <= self.epsilon:
+        """Choose action using epsilon-greedy policy with current epsilon"""
+        current_epsilon = self.get_current_epsilon()
+        
+        if np.random.random() <= current_epsilon:
             return random.randint(0, self.num_actions - 1)
         
         # Batch prediction for efficiency
@@ -244,7 +337,7 @@ class AgentTrainer:
         self.q_network.fit(states, target_q_values, epochs=1, verbose=0)
     
     def train_single_episode(self, max_moves=2000, verbose=False):
-        """Optimized single episode training"""
+        """Optimized single episode training with RBED"""
         engine = tEngine()
         total_reward = 0
         moves = 0
@@ -294,11 +387,15 @@ class AgentTrainer:
             moves += 1
             self.step_count += 1
         
-        # Decay epsilon
-        if self.epsilon > self.epsilon_min:
-            self.epsilon *= self.epsilon_decay
+        # Update epsilon based on selected strategy
+        if self.use_rbed:
+            rbed_triggered = self.update_epsilon_rbed(engine.score)
+        else:
+            self.update_epsilon_traditional()
+            rbed_triggered = False
         
         episode_time = time.time() - episode_start
+        current_epsilon = self.get_current_epsilon()
         
         episode_stats = {
             'episode': self.episode_count,
@@ -308,8 +405,11 @@ class AgentTrainer:
             'lines_cleared': engine.total_cleared,
             'level': engine.level,
             'time': episode_time,
-            'epsilon': self.epsilon,
-            'memory_size': len(self.memory)
+            'epsilon': current_epsilon,
+            'memory_size': len(self.memory),
+            'rbed_threshold': self.rbed_reward_threshold if self.use_rbed else None,
+            'rbed_triggered': rbed_triggered,
+            'rbed_thresholds_met': self.rbed_thresholds_met if self.use_rbed else None
         }
         
         # Track scores for performance analysis
@@ -366,9 +466,19 @@ class AgentTrainer:
             print(f"High score updated: {best_recent_score} at episode {episode}")
     
     def train_batch(self, num_episodes, save_interval=50, verbose=True):
-        """Optimized batch training with performance tracking"""
+        """Optimized batch training with RBED performance tracking"""
+        decay_strategy = "RBED" if self.use_rbed else "Traditional"
         print(f"Starting optimized DQN training for {num_episodes} episodes...")
+        print(f"Epsilon decay strategy: {decay_strategy}")
         print(f"Model parameters: {self.q_network.count_params()}")
+        
+        if self.use_rbed:
+            print(f"RBED Settings:")
+            print(f"  Current threshold: {self.rbed_reward_threshold}")
+            print(f"  Reward increment: {self.rbed_reward_increment}")
+            print(f"  Epsilon delta: {self.rbed_epsilon_delta}")
+            print(f"  Smoothing window: {self.rbed_smoothing_window}")
+            print(f"  Current epsilon: {self.rbed_epsilon:.4f}")
         
         batch_start = time.time()
         
@@ -393,11 +503,17 @@ class AgentTrainer:
                 
                 if verbose and (episode + 1) % 10 == 0:
                     avg_score = np.mean(self.last_100_scores) if self.last_100_scores else 0
+                    rbed_info = ""
+                    if self.use_rbed:
+                        smoothed = np.mean(self.rbed_recent_rewards) if self.rbed_recent_rewards else 0
+                        rbed_info = f", Thr={self.rbed_reward_threshold}, Sm={smoothed:.1f}"
+                    
                     print(f"Episode {self.episode_count}: "
                           f"Score={episode_stats['score']}, "
                           f"Avg100={avg_score:.1f}, "
                           f"Lines={episode_stats['lines_cleared']}, "
-                          f"ε={self.epsilon:.3f}, "
+                          f"ε={episode_stats['epsilon']:.4f}"
+                          f"{rbed_info}, "
                           f"Time={episode_stats['time']:.2f}s")
                 
                 if (episode + 1) % save_interval == 0:
@@ -417,17 +533,29 @@ class AgentTrainer:
         print(f"Average score (last 100): {np.mean(self.last_100_scores):.1f}")
         print(f"Best score: {max(self.episode_scores) if self.episode_scores else 0}")
         
+        if self.use_rbed:
+            print(f"RBED thresholds met: {self.rbed_thresholds_met}")
+            print(f"Final epsilon: {self.rbed_epsilon:.4f}")
+            print(f"Current threshold: {self.rbed_reward_threshold}")
+        
         self.save_model()
         self.save_stats()
         self.save_high_scores()
     
     def train_continuous(self, save_interval=50, status_interval=10):
-        """Continuous training mode - train until stopped"""
+        """Continuous training mode with RBED - train until stopped"""
+        decay_strategy = "RBED" if self.use_rbed else "Traditional"
         print("Starting continuous training mode...")
+        print(f"Epsilon decay strategy: {decay_strategy}")
         print("Press Ctrl+C to stop training gracefully")
         print(f"Model parameters: {self.q_network.count_params()}")
         print("Status updates every", status_interval, "episodes")
         print("Auto-save every", save_interval, "episodes")
+        
+        if self.use_rbed:
+            print(f"RBED Settings:")
+            print(f"  Current threshold: {self.rbed_reward_threshold}")
+            print(f"  Current epsilon: {self.rbed_epsilon:.4f}")
         print()
         
         self.continuous_training = True
@@ -458,11 +586,17 @@ class AgentTrainer:
                         session_time = time.time() - start_time
                         avg_time = session_time / episode_in_session
                         
+                        rbed_info = ""
+                        if self.use_rbed:
+                            smoothed = np.mean(self.rbed_recent_rewards) if self.rbed_recent_rewards else 0
+                            rbed_info = f", Thr={self.rbed_reward_threshold}, Sm={smoothed:.1f}"
+                        
                         print(f"Episode {self.episode_count} (Session: {episode_in_session}): "
                               f"Score={episode_stats['score']}, "
                               f"Avg100={avg_score:.1f}, "
                               f"Lines={episode_stats['lines_cleared']}, "
-                              f"ε={self.epsilon:.3f}, "
+                              f"ε={episode_stats['epsilon']:.4f}"
+                              f"{rbed_info}, "
                               f"Time={avg_time:.2f}s/ep")
                     
                     # Auto-save
@@ -477,6 +611,9 @@ class AgentTrainer:
                         print(f"Average time per episode: {session_time/episode_in_session:.2f}s")
                         if self.last_100_scores:
                             print(f"Current average score: {np.mean(self.last_100_scores):.1f}")
+                        if self.use_rbed:
+                            print(f"RBED thresholds met: {self.rbed_thresholds_met}")
+                            print(f"Current epsilon: {self.rbed_epsilon:.4f}")
                         print("---")
                         
                 except Exception as e:
@@ -504,62 +641,58 @@ class AgentTrainer:
             if self.last_100_scores:
                 print(f"Final average score (last 100): {np.mean(self.last_100_scores):.1f}")
             print(f"Best score ever: {max(self.episode_scores) if self.episode_scores else 0}")
+            if self.use_rbed:
+                print(f"Final RBED thresholds met: {self.rbed_thresholds_met}")
+                print(f"Final epsilon: {self.rbed_epsilon:.4f}")
     
-    def stop_continuous_training(self):
-        """Stop continuous training gracefully"""
-        if self.continuous_training:
-            self.stop_training = True
-            print("Stop signal sent - training will stop after current episode")
+    def switch_epsilon_strategy(self, use_rbed=True):
+        """Switch between RBED and traditional epsilon decay"""
+        self.use_rbed = use_rbed
+        strategy = "RBED" if use_rbed else "Traditional"
+        print(f"Switched to {strategy} epsilon decay strategy")
+        
+        if use_rbed:
+            print(f"Current RBED settings:")
+            print(f"  Epsilon: {self.rbed_epsilon:.4f}")
+            print(f"  Threshold: {self.rbed_reward_threshold}")
+            print(f"  Thresholds met: {self.rbed_thresholds_met}")
         else:
-            print("Not currently in continuous training mode")
+            print(f"Current traditional settings:")
+            print(f"  Epsilon: {self.epsilon:.4f}")
+            print(f"  Decay rate: {self.epsilon_decay}")
     
-    def analyze_performance(self):
-        """Analyze when AI might start scoring consistently"""
-        if len(self.episode_scores) < 100:
-            print("Need at least 100 episodes for meaningful analysis")
+    def reset_rbed(self, reset_epsilon=True):
+        """Reset RBED parameters"""
+        if reset_epsilon:
+            self.rbed_epsilon = 1.0
+        self.rbed_reward_threshold = 0
+        self.rbed_recent_rewards.clear()
+        self.rbed_thresholds_met = 0
+        self.rbed_last_decay_episode = 0
+        
+        print("RBED parameters reset")
+        print(f"  Epsilon: {self.rbed_epsilon:.4f}")
+        print(f"  Threshold: {self.rbed_reward_threshold}")
+        print(f"  Thresholds met: {self.rbed_thresholds_met}")
+    
+    def get_rbed_status(self):
+        """Display detailed RBED status"""
+        if not self.use_rbed:
+            print("RBED is not currently active.")
             return
         
-        # Calculate rolling averages
-        window_size = 100
-        rolling_averages = []
-        
-        for i in range(window_size, len(self.episode_scores) + 1):
-            window = self.episode_scores[i-window_size:i]
-            rolling_averages.append(np.mean(window))
-        
-        # Find when scores consistently stay above 0
-        positive_streaks = []
-        current_streak = 0
-        
-        for avg in rolling_averages:
-            if avg > 0:
-                current_streak += 1
-            else:
-                if current_streak > 0:
-                    positive_streaks.append(current_streak)
-                current_streak = 0
-        
-        if current_streak > 0:
-            positive_streaks.append(current_streak)
-        
-        print("\nPerformance Analysis:")
-        print(f"Total episodes: {len(self.episode_scores)}")
-        print(f"Current average (last 100): {np.mean(self.last_100_scores):.2f}")
-        print(f"Best score achieved: {max(self.episode_scores)}")
-        print(f"Episodes with score > 0: {sum(1 for s in self.episode_scores if s > 0)}")
-        
-        if positive_streaks:
-            print(f"Longest streak of positive averages: {max(positive_streaks)} episodes")
-        
-        # Predict when consistent positive scores might occur
-        if len(rolling_averages) > 10:
-            recent_trend = np.polyfit(range(len(rolling_averages)), rolling_averages, 1)[0]
-            if recent_trend > 0:
-                episodes_to_positive = max(0, int(-rolling_averages[-1] / recent_trend))
-                print(f"Estimated episodes until consistent positive scores: ~{episodes_to_positive}")
-            else:
-                print("No positive trend detected yet")
-    
+        smoothed = np.mean(self.rbed_recent_rewards) if self.rbed_recent_rewards else 0
+        print("\nRBED Status:")
+        print(f"  Current epsilon: {self.rbed_epsilon:.4f}")
+        print(f"  Minimum epsilon: {self.rbed_epsilon_min}")
+        print(f"  Current threshold: {self.rbed_reward_threshold}")
+        print(f"  Reward increment: {self.rbed_reward_increment}")
+        print(f"  Epsilon delta: {self.rbed_epsilon_delta}")
+        print(f"  Smoothing window: {self.rbed_smoothing_window}")
+        print(f"  Smoothed reward: {smoothed:.1f}")
+        print(f"  Thresholds met: {self.rbed_thresholds_met}")
+        print(f"  Last decay at episode: {self.rbed_last_decay_episode}")
+
     def load_stats(self):
         """Load training statistics"""
         try:
@@ -570,7 +703,7 @@ class AgentTrainer:
         except Exception as e:
             print(f"Error loading stats: {e}")
             return {'episodes': [], 'evaluations': []}
-    
+
     def save_stats(self):
         """Save training statistics"""
         try:
@@ -580,80 +713,67 @@ class AgentTrainer:
             print(f"Error saving stats: {e}")
 
 def main():
-    """Main training interface with performance analysis and continuous mode"""
+    """Command-line interface for RBED-enabled Tetris DQN training"""
     trainer = AgentTrainer()
-    
-    print("Optimized DQN Tetris AI Trainer")
+
+    print("RBED-Enabled DQN Tetris Trainer")
     print("===============================")
     print("Commands:")
-    print("  train <episodes>  - Train for specified episodes")
-    print("  continuous        - Start continuous training (Ctrl+C to stop)")  
-    print("  stop             - Stop continuous training")
-    print("  eval <games>     - Evaluate performance")
-    print("  analyze          - Analyze performance trends")
-    print("  scores           - Show high scores")
-    print("  quick            - Quick training (100 episodes)")
-    print("  benchmark        - Speed benchmark (10 episodes)")
-    print("  quit             - Exit trainer")
+    print("  train <episodes>      - Train for specified number of episodes")
+    print("  continuous            - Start continuous training")
+    print("  stop                  - Stop continuous training")
+    print("  switch_rbed <on/off>  - Enable or disable RBED")
+    print("  reset_rbed            - Reset RBED parameters")
+    print("  rbed_status           - Show RBED status")
+    print("  scores                - Show high scores")
+    print("  epsilon               - Show current epsilon")
+    print("  quick                 - Quick 100 episode train")
+    print("  quit                  - Exit trainer")
     print()
-    
+
     while True:
         try:
-            command = input("Enter command: ").strip().lower().split()
-            
+            command = input("Command> ").strip().lower().split()
+
             if not command:
                 continue
-            
-            if command[0] == 'quit':
+
+            if command[0] == "quit":
                 break
-            
-            elif command[0] == 'train':
+            elif command[0] == "train":
                 episodes = int(command[1]) if len(command) > 1 else 100
                 trainer.train_batch(episodes)
-            
-            elif command[0] == 'continuous':
+            elif command[0] == "continuous":
                 trainer.train_continuous()
-                
-            elif command[0] == 'stop':
-                trainer.stop_continuous_training()
-            
-            elif command[0] == 'analyze':
-                trainer.analyze_performance()
-            
-            elif command[0] == 'scores':
-                if trainer.high_scores:
-                    print("High Scores (every 100 episodes):")
-                    for entry in trainer.high_scores[-10:]:  # Show last 10
-                        print(f"Episode {entry['episode']}: {entry['score']}")
+            elif command[0] == "stop":
+                trainer.stop_training = True
+                print("Stop signal sent.")
+            elif command[0] == "switch_rbed":
+                if len(command) > 1 and command[1] in ['on', 'off']:
+                    trainer.switch_epsilon_strategy(use_rbed=(command[1] == 'on'))
                 else:
-                    print("No high scores recorded yet")
-            
-            elif command[0] == 'benchmark':
-                print("Running speed benchmark...")
-                start_time = time.time()
-                trainer.train_batch(10, verbose=False)
-                end_time = time.time()
-                print(f"10 episodes completed in {end_time - start_time:.2f} seconds")
-                print(f"Average: {(end_time - start_time) / 10:.2f} seconds per episode")
-            
-            elif command[0] == 'quick':
+                    print("Usage: switch_rbed <on/off>")
+            elif command[0] == "reset_rbed":
+                trainer.reset_rbed()
+            elif command[0] == "rbed_status":
+                trainer.get_rbed_status()
+            elif command[0] == "epsilon":
+                print(f"Current epsilon: {trainer.get_current_epsilon():.4f}")
+            elif command[0] == "scores":
+                if trainer.high_scores:
+                    print("High Scores:")
+                    for entry in trainer.high_scores[-10:]:
+                        print(f"  Episode {entry['episode']}: {entry['score']}")
+                else:
+                    print("No high scores yet.")
+            elif command[0] == "quick":
                 trainer.train_batch(100)
-            
             else:
-                print("Unknown command")
-        
+                print("Unknown command.")
         except KeyboardInterrupt:
-            if trainer.continuous_training:
-                trainer.stop_continuous_training()
-            else:
-                print("\nExiting...")
-                break
-        except ValueError:
-            print("Invalid number format")
+            print("\nInterrupted. Type 'quit' to exit.")
         except Exception as e:
             print(f"Error: {e}")
-    
-    print("Trainer finished!")
 
 if __name__ == "__main__":
     main()
