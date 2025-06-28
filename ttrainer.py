@@ -76,20 +76,32 @@ class AgentTrainer:
         self.episode_scores = []
         self.last_100_scores = deque(maxlen=100)
         
+        # Continuous training control
+        self.continuous_training = False
+        self.stop_training = False
+        
     def build_optimized_model(self):
-        """Build optimized CNN model with fewer parameters"""
+        """Build optimized CNN model with fixed architecture to prevent dimension errors"""
         model = models.Sequential([
             layers.Input(shape=(self.board_height, self.board_width, 1)),
             
-            # Smaller, more efficient conv layers
-            layers.Conv2D(16, (4, 4), activation='relu', strides=(2, 2)),
-            layers.Conv2D(32, (3, 3), activation='relu'),
-            layers.Conv2D(32, (3, 3), activation='relu'),
+            # First conv layer with padding to maintain reasonable dimensions
+            layers.Conv2D(32, (4, 4), activation='relu', padding='same'),
+            layers.MaxPooling2D((2, 2)),  # 20x10 -> 10x5
             
-            # Flatten instead of global pooling for speed
-            layers.Flatten(),
+            # Second conv layer with smaller kernel
+            layers.Conv2D(64, (3, 3), activation='relu', padding='same'),
+            layers.MaxPooling2D((2, 2)),  # 10x5 -> 5x2 (rounded down)
             
-            # Smaller dense layers
+            # Third conv layer optimized for remaining dimensions
+            layers.Conv2D(64, (2, 2), activation='relu', padding='same'),
+            
+            # Global average pooling to handle variable dimensions gracefully
+            layers.GlobalAveragePooling2D(),
+            
+            # Dense layers for decision making
+            layers.Dense(512, activation='relu'),
+            layers.Dropout(0.3),
             layers.Dense(256, activation='relu'),
             layers.Dropout(0.2),
             layers.Dense(128, activation='relu'),
@@ -99,7 +111,7 @@ class AgentTrainer:
         ])
         
         model.compile(
-            optimizer=Adam(learning_rate=self.learning_rate), # type: ignore
+            optimizer=Adam(learning_rate=self.learning_rate),
             loss='mse',
             metrics=['mae']
         )
@@ -241,6 +253,10 @@ class AgentTrainer:
         episode_start = time.time()
         
         while not engine.game_over and moves < max_moves:
+            # Check for stop signal in continuous mode
+            if self.continuous_training and self.stop_training:
+                break
+                
             # Choose and execute action
             action_idx = self.choose_action(current_state)
             
@@ -357,6 +373,11 @@ class AgentTrainer:
         batch_start = time.time()
         
         for episode in range(num_episodes):
+            # Check for stop signal in continuous mode
+            if self.continuous_training and self.stop_training:
+                print("Training stopped by user")
+                break
+                
             self.episode_count += 1
             
             try:
@@ -389,7 +410,7 @@ class AgentTrainer:
                 continue
         
         batch_time = time.time() - batch_start
-        avg_time_per_episode = batch_time / num_episodes
+        avg_time_per_episode = batch_time / num_episodes if num_episodes > 0 else 0
         
         print(f"\nTraining completed in {batch_time:.1f} seconds")
         print(f"Average time per episode: {avg_time_per_episode:.2f} seconds")
@@ -399,6 +420,98 @@ class AgentTrainer:
         self.save_model()
         self.save_stats()
         self.save_high_scores()
+    
+    def train_continuous(self, save_interval=50, status_interval=10):
+        """Continuous training mode - train until stopped"""
+        print("Starting continuous training mode...")
+        print("Press Ctrl+C to stop training gracefully")
+        print(f"Model parameters: {self.q_network.count_params()}")
+        print("Status updates every", status_interval, "episodes")
+        print("Auto-save every", save_interval, "episodes")
+        print()
+        
+        self.continuous_training = True
+        self.stop_training = False
+        
+        start_time = time.time()
+        episode_in_session = 0
+        
+        try:
+            while not self.stop_training:
+                episode_in_session += 1
+                self.episode_count += 1
+                
+                try:
+                    episode_stats = self.train_single_episode()
+                    
+                    # Update high scores every 100 episodes
+                    self.update_high_scores(episode_stats['score'], self.episode_count)
+                    
+                    # Save training stats
+                    if not hasattr(self, 'training_stats'):
+                        self.training_stats = {'episodes': []}
+                    self.training_stats['episodes'].append(episode_stats)
+                    
+                    # Status updates
+                    if episode_in_session % status_interval == 0:
+                        avg_score = np.mean(self.last_100_scores) if self.last_100_scores else 0
+                        session_time = time.time() - start_time
+                        avg_time = session_time / episode_in_session
+                        
+                        print(f"Episode {self.episode_count} (Session: {episode_in_session}): "
+                              f"Score={episode_stats['score']}, "
+                              f"Avg100={avg_score:.1f}, "
+                              f"Lines={episode_stats['lines_cleared']}, "
+                              f"ε={self.epsilon:.3f}, "
+                              f"Time={avg_time:.2f}s/ep")
+                    
+                    # Auto-save
+                    if episode_in_session % save_interval == 0:
+                        self.save_model()
+                        self.save_stats()
+                        self.save_high_scores()
+                        session_time = time.time() - start_time
+                        print(f"\n--- Checkpoint saved at episode {self.episode_count} ---")
+                        print(f"Session time: {session_time/3600:.2f} hours")
+                        print(f"Episodes this session: {episode_in_session}")
+                        print(f"Average time per episode: {session_time/episode_in_session:.2f}s")
+                        if self.last_100_scores:
+                            print(f"Current average score: {np.mean(self.last_100_scores):.1f}")
+                        print("---")
+                        
+                except Exception as e:
+                    print(f"Error in episode {self.episode_count}: {e}")
+                    continue
+                    
+        except KeyboardInterrupt:
+            print("\n\nTraining interrupted by user")
+            
+        finally:
+            self.stop_training = True
+            self.continuous_training = False
+            
+            # Final save
+            self.save_model()
+            self.save_stats()
+            self.save_high_scores()
+            
+            session_time = time.time() - start_time
+            print(f"\nContinuous training session completed:")
+            print(f"Total episodes this session: {episode_in_session}")
+            print(f"Total training time: {session_time/3600:.2f} hours")
+            if episode_in_session > 0:
+                print(f"Average time per episode: {session_time/episode_in_session:.2f} seconds")
+            if self.last_100_scores:
+                print(f"Final average score (last 100): {np.mean(self.last_100_scores):.1f}")
+            print(f"Best score ever: {max(self.episode_scores) if self.episode_scores else 0}")
+    
+    def stop_continuous_training(self):
+        """Stop continuous training gracefully"""
+        if self.continuous_training:
+            self.stop_training = True
+            print("Stop signal sent - training will stop after current episode")
+        else:
+            print("Not currently in continuous training mode")
     
     def analyze_performance(self):
         """Analyze when AI might start scoring consistently"""
@@ -467,19 +580,21 @@ class AgentTrainer:
             print(f"Error saving stats: {e}")
 
 def main():
-    """Main training interface with performance analysis"""
+    """Main training interface with performance analysis and continuous mode"""
     trainer = AgentTrainer()
     
     print("Optimized DQN Tetris AI Trainer")
     print("===============================")
     print("Commands:")
     print("  train <episodes>  - Train for specified episodes")
-    print("  eval <games>      - Evaluate performance")
-    print("  analyze           - Analyze performance trends")
-    print("  scores            - Show high scores")
-    print("  quick             - Quick training (100 episodes)")
-    print("  benchmark         - Speed benchmark (10 episodes)")
-    print("  quit              - Exit trainer")
+    print("  continuous        - Start continuous training (Ctrl+C to stop)")  
+    print("  stop             - Stop continuous training")
+    print("  eval <games>     - Evaluate performance")
+    print("  analyze          - Analyze performance trends")
+    print("  scores           - Show high scores")
+    print("  quick            - Quick training (100 episodes)")
+    print("  benchmark        - Speed benchmark (10 episodes)")
+    print("  quit             - Exit trainer")
     print()
     
     while True:
@@ -495,6 +610,12 @@ def main():
             elif command[0] == 'train':
                 episodes = int(command[1]) if len(command) > 1 else 100
                 trainer.train_batch(episodes)
+            
+            elif command[0] == 'continuous':
+                trainer.train_continuous()
+                
+            elif command[0] == 'stop':
+                trainer.stop_continuous_training()
             
             elif command[0] == 'analyze':
                 trainer.analyze_performance()
@@ -522,8 +643,11 @@ def main():
                 print("Unknown command")
         
         except KeyboardInterrupt:
-            print("\nExiting...")
-            break
+            if trainer.continuous_training:
+                trainer.stop_continuous_training()
+            else:
+                print("\nExiting...")
+                break
         except ValueError:
             print("Invalid number format")
         except Exception as e:
