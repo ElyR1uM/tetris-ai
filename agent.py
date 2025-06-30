@@ -36,9 +36,43 @@ class Agent:
         model.compile(loss='mse', optimizer='adam')
         return model
     
+    def add_to_memory(self, current_state, next_state, reward, done):
+        self.memory.append((current_state, next_state, reward, done))
+    
     def act(self, state):
-        """Choose an action based on the current state."""
-        if np.random.rand() <= self.epsilon:
-            return random.choice(list(states))
-        q_values = self.model.predict(np.array([state]), verbose=0)
-        return np.argmax(q_values[0])
+        max_value = -sys.maxsize - 1
+        best = None
+
+        if random.random() <= self.epsilon:
+            return random.choice(state)
+        else:
+            for s in state:
+                value = self.model.predict(np.array([s]), verbose=0)[0][0]
+                if value > max_value:
+                    max_value = value
+                    best = s
+
+        return best
+    
+    def replay(self):
+        if len(self.memory) > self.replay_start:
+            batch = random.sample(self.memory, self.batch_size)
+
+            next_states = np.array([s[1] for s in batch])
+            next_qvalue = np.array([s[0] for s in self.model.predict(next_states)])
+
+            x = []
+            y = []
+
+
+            for i in range(self.batch_size):
+                state, _, reward, done = batch[i][0], None, batch[i][2], batch[i][3]
+                if not done:
+                    new_q = reward + self.discount * next_qvalue[i]
+                else:
+                    new_q = reward
+
+                x.append(state)
+                y.append(new_q)
+
+            self.model.fit(np.array(x), np.array(y), batch_size=self.batch_size, epochs=self.epochs, verbose=0)
