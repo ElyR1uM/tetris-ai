@@ -1,5 +1,5 @@
-# Visual interface in the terminal for tetris_engine.py
-# Curses is the library used to display the game
+"""Visual user-driven Interface for tetris_engine."""
+
 import curses
 import time
 import tetris_engine
@@ -19,18 +19,21 @@ PIECE_COLORS = {
 game_score = 0
 
 def init_colors():
+    """Sets the color for each piece."""
     curses.start_color()
     curses.use_default_colors() # Ensures the color scheme fits with the terminal's theme
     for i, (ptype, color) in enumerate(PIECE_COLORS.items(), start=1):
         curses.init_pair(i, color, -1)  # foreground color, default background
 
-# Function to get the color pair for a specific cell in the board -> Which cell is a background cell and which one is a piece cell?
+
 def get_color_pair(engine, x, y):
-    # Draws anything outside of the board as empty
+    """Differentiates between piece cells and background cells."""
+
+    # Background drawn as empty space
     if y < 0 or y >= len(engine.board) or x < 0 or x >= len(engine.board[0]):
         return 0
     
-    # Check if a cell is part of the current falling piece
+    # For falling pieces
     for piece_y, row in enumerate(engine.piece):
         for piece_x, cell in enumerate(row):
             if cell:
@@ -39,14 +42,10 @@ def get_color_pair(engine, x, y):
                 if px == x and py == y:
                     return curses.color_pair(list(PIECE_COLORS.keys()).index(engine.piece_type) + 1)
     
-    # Check if it's a locked piece
+    # For locked pieces
     if engine.board[y][x]:
         piece_type = engine.board[y][x]
-        if piece_type in PIECE_COLORS:
-            return curses.color_pair(list(PIECE_COLORS.keys()).index(piece_type) + 1)
-        else:
-            # Fallback for old True values or unknown types
-            return curses.color_pair(7)  # white for locked blocks
+        return curses.color_pair(list(PIECE_COLORS.keys()).index(piece_type) + 1)
     
     return 0
 
@@ -86,7 +85,9 @@ def draw_board(stdscr, engine):
     stdscr.addstr(len(board), 0, "+" + "--" * len(board[0]) + "+")
     stdscr.addstr(len(board) + 2, 0, f"Score: {engine.score}")
     stdscr.addstr(len(board) + 3, 0, f"Level: {engine.level}")
-    stdscr.addstr(len(board) + 4, 0, f"Efficiency: {engine.efficiency}%")
+    stdscr.addstr(len(board) + 4, 0, f"Holes: {engine.holes}")
+    stdscr.addstr(len(board) + 5, 0, f"Bumpiness: {engine.bumpiness}")
+    stdscr.addstr(len(board) + 6, 0, f"Height: {engine.heights}")
     stdscr.refresh()
 
 def main(stdscr):
@@ -116,11 +117,7 @@ def main(stdscr):
         elif key == ord(' '): # Hard drop
             while not engine.check_collision(dy=1):
                 engine.piece_y += 1
-            # This is the part where all the functions of tEngine are called
-            engine.lock_piece()
-            engine.clear_lines()
-            engine.spawn_piece()
-            engine.increase_level()
+            engine.step()
 
         if time.time() - last_drop > engine.tick_rate and not engine.game_over:
             engine.drop()
@@ -140,14 +137,12 @@ def main(stdscr):
             while True:
                 key = stdscr.getch()
                 if key in [ord('y'), ord('Y')]: # Gives the option to write a small y or a capitalised Y
-                    # Ask for the player's name (KI for AI tries)
                     stdscr.addstr(len(engine.board) + 8, 0, "Enter your name: ")
                     stdscr.refresh()
                     curses.echo()
                     name = stdscr.getstr(len(engine.board) + 8, len("Enter your name: ") + 1, 20).decode('utf-8')
                     curses.noecho()
 
-                    # Writes scores to file (obviously)
                     engine.write_scores(name)
                     stdscr.addstr(len(engine.board) + 8, 0, "Press any button to exit.")
                     break

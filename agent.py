@@ -35,3 +35,10 @@ class Agent:
 
         model.compile(loss='mse', optimizer='adam')
         return model
+    
+    def act(self, state):
+        """Choose an action based on the current state."""
+        if np.random.rand() <= self.epsilon:
+            return random.choice(list(states))
+        q_values = self.model.predict(np.array([state]), verbose=0)
+        return np.argmax(q_values[0])

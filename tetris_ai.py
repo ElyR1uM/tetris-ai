@@ -62,7 +62,6 @@ class qAgent:
             game_info = {
                 'score': self.engine.score,
                 'level': self.engine.level,
-                'efficiency': self.engine.efficiency,
                 'game_over': self.engine.game_over
             }
             # Returns a tuple of board and piece info + game info dictionary
