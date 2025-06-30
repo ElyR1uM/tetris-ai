@@ -41,8 +41,8 @@ class AgentTrainer:
         
         # Reward-Based Epsilon Decay (RBED) parameters
         self.use_rbed = True
-        self.rbed_epsilon = 1.0
-        self.rbed_epsilon_min = 0.05
+        self.rbed_epsilon = 0.5
+        self.rbed_epsilon_min = 0.01
         self.rbed_reward_threshold = 0  # Start with 0 for Tetris (can go negative)
         self.rbed_reward_increment = 50  # Increase threshold by 50 points each time
         self.rbed_epsilon_delta = 0.05  # Decrease epsilon by this amount when threshold is met
@@ -98,8 +98,8 @@ class AgentTrainer:
         self.continuous_training = False
         self.stop_training = False
         
-    def configure_rbed(self, initial_threshold=0, reward_increment=50, epsilon_delta=0.05, 
-                      smoothing_window=10, min_epsilon=0.05):
+    def configure_rbed(self, initial_threshold=0, reward_increment=10, epsilon_delta=0.05, 
+                      smoothing_window=10, min_epsilon=0.01):
         """Configure Reward-Based Epsilon Decay parameters"""
         self.rbed_reward_threshold = initial_threshold
         self.rbed_reward_increment = reward_increment
@@ -664,7 +664,7 @@ class AgentTrainer:
     def reset_rbed(self, reset_epsilon=True):
         """Reset RBED parameters"""
         if reset_epsilon:
-            self.rbed_epsilon = 1.0
+            self.rbed_epsilon = 0.5
         self.rbed_reward_threshold = 0
         self.rbed_recent_rewards.clear()
         self.rbed_thresholds_met = 0

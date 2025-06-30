@@ -9,11 +9,11 @@ class RewardCalculator:
         # Reward weights - tune these based on training performance
         self.weights = {
             'lines_cleared': 100,      # Primary objective
-            'score_increase': 0.1,     # Direct score improvement
+            'score_increase': 100,     # Direct score improvement
             'height_penalty': -0.5,    # Penalize tall stacks
-            'holes_penalty': -25,      # Strongly penalize holes
-            'bumpiness_penalty': -0.3, # Penalize uneven surface
-            'well_bonus': 2,           # Bonus for creating wells
+            'holes_penalty': -1,      # Strongly penalize holes
+            'bumpiness_penalty': -0.1, # Penalize uneven surface
+            'well_bonus': 0.5,           # Bonus for creating wells
             'line_clear_bonus': {      # Bonus multipliers for line clears
                 1: 40,   # Single
                 2: 100,  # Double  
@@ -21,8 +21,8 @@ class RewardCalculator:
                 4: 1200  # Tetris
             },
             'survival_bonus': 1,       # Small bonus for staying alive
-            'game_over_penalty': -200, # Heavy penalty for game over
-            'move_penalty': -0.1,      # Small penalty to encourage efficiency
+            'game_over_penalty': -100, # Heavy penalty for game over
+            'move_penalty': 0,      # Small penalty to encourage efficiency
         }
     
     def calculate_reward(self, prev_state, action, new_state, engine):
