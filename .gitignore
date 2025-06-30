@@ -5,3 +5,7 @@ __pycache__/
 *.pyc
 *.pkl
 q-ai/
+# venv dirs
+env/
+.devcontainer/
+.github/

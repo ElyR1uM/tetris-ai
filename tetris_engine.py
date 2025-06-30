@@ -45,7 +45,6 @@ TETROMINO_SHAPES  = {
 
 # Engine to run Tetris
 class tEngine: 
-    # Equivalent of a constructor
     def __init__(self):
         self.reset()
         # For Troubleshooting, output files are created here
@@ -136,35 +135,7 @@ class tEngine:
                         # Store the piece type instead of just True
                         self.board[board_y][board_x] = self.piece_type # type: ignore
                     #self.board[self.piece_y + y][self.piece_x + x] = 1
-
-    def get_heights(self):
-        # Calculates the heights of each column and returns them as a list
-        heights = [0] * BOARD_WIDTH
-        for x in range(BOARD_WIDTH):
-            for y in range(BOARD_HEIGHT):
-                if self.board[y][x] != 0:
-                    heights[x] = BOARD_HEIGHT - y
-                    break
-        for i in range(len(heights) - 1):
-            # Calculate bumpiness as the absolute difference between adjacent columns
-            bumpiness += abs(heights[i] - heights[i + 1])
-        
-        return bumpiness, sum(heights)
-    
-    def get_holes(self):
-        holes = 0
-        for col in zip(*self.board):
-            row = 0
-            while row < BOARD_HEIGHT and col[row] == 0:
-                row += 1
-            holes += len([x for x in col[row + 1:] if x == 0])
-        return holes
-
-    def get_state(self):
-        # Returns the current state of the game as a dictionary
-        self.bumpiness, self.heights = self.get_heights()
-        self.holes = self.get_holes()
-        return np.array([self.cleared, self.holes, self.bumpiness, self.heights])
+        self.calculate_efficiency()
 
     # Removes fully filled lines and shifts the board down
     def clear_lines(self):
@@ -172,8 +143,8 @@ class tEngine:
         new_board = [row for row in self.board if any(cell == 0 for cell in row)]
         self.cleared = BOARD_HEIGHT - len(new_board) # Gives you the ability to clear multiple lines at once
         with open("out/out0.txt", "a") as f:
-            if self.cleared > 0:
-                f.write(f"Cleared {self.cleared} lines\n")
+            if cleared > 0:
+                f.write(f"Cleared {cleared} lines\n")
         self.prevtc = self.total_cleared
         self.total_cleared += self.cleared
         with open("out/out1.txt", "a") as f:
