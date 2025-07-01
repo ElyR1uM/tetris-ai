@@ -95,6 +95,9 @@ for episode in range(max_episodes):
         env.hard_drop()
 
         next_state = next_states[best_action]
+        actual_state = env.get_state()
+        if not np.allclose(actual_state, next_state):
+            print("Warning: State mismatch!")
 
         reward = env.get_reward()
         done = env.game_over
@@ -103,6 +106,12 @@ for episode in range(max_episodes):
         agent.add_to_memory(current_state, next_state, reward, done)
 
         current_state = next_state
+
+        if agent.epsilon > agent.epsilon_min:
+            agent.epsilon -= agent.epsilon_decay
+
+        if steps % agent.target_update_freq == 0:
+            agent.update_target_model()
 
         if steps % 4 == 0 and len(agent.memory) >= agent.replay_start:
             agent.replay()
@@ -126,6 +135,3 @@ for episode in range(max_episodes):
 
     if episode % 100 == 0:
         print(f"Episode {episode}/{max_episodes}, Total Reward: {total_reward}")
-
-    if agent.epsilon > agent.epsilon_min:
-        agent.epsilon -= agent.epsilon_decay

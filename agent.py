@@ -41,8 +41,7 @@ class Agent:
     def build_model(self):
         model = Sequential([
             keras.Input(shape=(self.state_size,), name='input_layer'),
-            Dense(128, activation='leaky_relu', kernel_initializer='he_normal'),
-            Dense(128, activation='leaky_relu', kernel_initializer='he_normal'),
+            Dense(64, activation='leaky_relu', kernel_initializer='he_normal'),
             Dense(64, activation='leaky_relu', kernel_initializer='he_normal'),
             Dense(32, activation='leaky_relu', kernel_initializer='he_normal'),
             Dense(1, activation='linear')
@@ -88,7 +87,7 @@ class Agent:
         training_state = {
             'epsilon': self.epsilon,
             'memory': list(self.memory),
-            'steps': self.steps
+            'steps': self.steps,
         }
         with open(state_filepath, 'wb') as f:
             pickle.dump(training_state, f)
@@ -117,10 +116,9 @@ class Agent:
         batch = random.sample(self.memory, min(self.batch_size, len(self.memory))) # type: ignore
 
         states = np.array([transition[0] for transition in batch])
-        actions = np.array([transition[1] for transition in batch])
+        next_states = np.array([transition[1] for transition in batch])
         rewards = np.array([transition[2] for transition in batch])
-        next_states = np.array([transition[3] for transition in batch])
-        dones = np.array([transition[4] for transition in batch])
+        dones = np.array([transition[3] for transition in batch])
 
         current_qvalue = self.model.predict(states, verbose=0) # type: ignore
 
@@ -139,9 +137,5 @@ class Agent:
                                  batch_size=self.batch_size, 
                                  epochs=self.epochs, 
                                  verbose=0)
-        
-        self.steps += 1
-        if self.steps % self.target_update_freq == 0:
-            self.update_target_model()
 
         return history.history['loss'][0] if history.history['loss'] else 0

@@ -5,7 +5,7 @@ import random
 import copy
 import json
 import datetime
-import numpy as np
+import numpy as np # type: ignore
 
 # Initialise the board width and height
 BOARD_WIDTH = 10
@@ -172,7 +172,7 @@ class tEngine:
         Lines_cleared^2 * Board_width + 1"""
         reward = 0
         if not self.game_over:
-            reward += self.cleared ** 2 * BOARD_WIDTH + 1
+            reward += self.cleared ** 2 * BOARD_WIDTH
         else:
             reward -= 5
         return reward
@@ -224,6 +224,9 @@ class tEngine:
         original_board = copy.deepcopy(self.board)
         original_x = self.piece_x
         original_y = self.piece_y
+        original_score = self.score
+        original_cleared = self.cleared
+        original_total_cleared = self.total_cleared
 
         for rotation in range(4):
             # Rotate the piece to the current rotation
@@ -243,12 +246,17 @@ class tEngine:
                     self.piece_y += 1
                 # Lock the piece in place
                 self.lock_piece()
+                # Clear lines after locking the piece
+                self.clear_lines()
                 # Get the state after locking
                 state = self.get_state()
                 # Store the state with key (rotation, x)
                 states[(rotation, x)] = state
                 # Restore the board for the next iteration
                 self.board = copy.deepcopy(original_board)
+                self.score = original_score
+                self.cleared = original_cleared
+                self.total_cleared = original_total_cleared
         # Restore original piece and position
         self.piece = original_piece
         self.piece_x = original_x
