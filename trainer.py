@@ -126,11 +126,11 @@ for episode in range(max_episodes):
         avg_reward = sum(rewards[-10:]) / min(10, len(rewards))
         print(f"Episode {episode + 1}/{max_episodes}, Total Reward: {total_reward}, Avg Last 10: {avg_reward:.2f}, Epsilon: {agent.epsilon:.4f}")
 
-    if (episode + 1) % SAVE_INTERVAL == 0:
+    if (episode) % SAVE_INTERVAL == 0:
         agent.save_model(MODEL_SAVE_PATH)
         save_progress(episodes, rewards, TRAINING_STATE_PATH)
     
-    if (episode + 1) % PLOT_INTERVAL == 0:
+    if (episode) % PLOT_INTERVAL == 0:
         plot_progress(episodes, rewards)
 
     if episode % 100 == 0:
