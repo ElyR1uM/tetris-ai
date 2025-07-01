@@ -35,9 +35,9 @@ class Agent:
 
     def build_model(self):
         model = keras.Sequential([
-				Dense(64, input_dim=self.state_size, activation='relu', kernel_initializer='glorot_uniform'),
-				Dense(64, activation='relu', kernel_initializer='glorot_uniform'),
-				Dense(32, activation='relu', kernel_initializer='glorot_uniform'),
+				Dense(64, input_dim=self.state_size, activation='leaky_relu', kernel_initializer='glorot_uniform'),
+				Dense(64, activation='leaky_relu', kernel_initializer='glorot_uniform'),
+				Dense(32, activation='leaky_relu', kernel_initializer='glorot_uniform'),
 				Dense(1, activation='linear')
 		])
 
