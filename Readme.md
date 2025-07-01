@@ -5,6 +5,7 @@ Python-basiertes Terminal Tetris game
 ## Setup für trainieren im Codespace:
 - Benötigte Python-Version: 3.10
 - python -m venv env
+- source env/bin/activate
 - pip install --upgrade pip
 - pip install --upgrade keras matplotlib tensorflow
 - python trainer.py
