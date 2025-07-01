@@ -2,10 +2,11 @@
 
 from tetris_engine import tEngine
 from agent import Agent
+from datetime import datetime
 import json
 import os
-import matplotlib.pyplot as plt
-from datetime import datetime
+import matplotlib.pyplot as plt # type: ignore
+import numpy as np # type: ignore
 
 
 # Config
@@ -52,7 +53,7 @@ def plot_progress(episodes, rewards):
 env = tEngine()
 agent = Agent(4)
 
-max_steps = 25000
+max_steps = 50000
 max_episodes = 3000
 
 episodes, rewards = load_progress(TRAINING_STATE_PATH)
@@ -79,22 +80,21 @@ for episode in range(max_episodes):
             break
 
         # Tells the agent to choose the best action from the possible placements
-        best_state = agent.act(next_states.values())
+        best_action = agent.act(next_states)
 
-        # Finds the best state and chooses the corresponding action to achieve it
-        best_action = None
-        for action, state in next_states.items():
-            if (state == best_state).all():
-                best_action = action
-                break
+        if best_action is None:
+            print("bext_action returned None")
+            break
+
+        next_state = next_states[best_action]
 
         reward = env.get_reward()
         done = env.game_over
         total_reward += reward
 
-        agent.add_to_memory(current_state, next_states[best_action], reward, done)
+        agent.add_to_memory(current_state, next_state, reward, done)
 
-        current_state = next_states[best_action]
+        current_state = next_state
         
         steps += 1
 
