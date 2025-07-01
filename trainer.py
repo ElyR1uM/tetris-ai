@@ -62,15 +62,14 @@ start_episode = len(episodes)
 print(f"Starting training from episode {start_episode + 1}/{max_episodes}...")
 
 for episode in range(max_episodes):
-    current_state = env.reset()
+    env.reset()
+    current_state = env.get_state()
     done = False
     steps = 0
     total_reward = 0
     print(f"Training at episode {episode + 1}/{max_episodes}...")
 
     while not done and steps < max_steps:
-        # Run game
-        env.step()
 
         # Fetch all possible placements for the current piece
         next_states = env.get_possible_states()
@@ -86,6 +85,15 @@ for episode in range(max_episodes):
             print("bext_action returned None")
             break
 
+        rotation, x_pos = best_action
+
+        for _ in range(rotation):
+            env.rotate()
+
+        env.piece_x = x_pos
+
+        env.hard_drop()
+
         next_state = next_states[best_action]
 
         reward = env.get_reward()
@@ -95,6 +103,9 @@ for episode in range(max_episodes):
         agent.add_to_memory(current_state, next_state, reward, done)
 
         current_state = next_state
+
+        if steps % 4 == 0 and len(agent.memory) >= agent.replay_start:
+            agent.replay()
         
         steps += 1
 

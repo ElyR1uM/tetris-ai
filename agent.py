@@ -114,7 +114,7 @@ class Agent:
     def replay(self):
         if len(self.memory) < self.replay_start:
             return
-        batch = random.sample(self.memory, min(self.batch_size), len(self.memory)) # type: ignore
+        batch = random.sample(self.memory, min(self.batch_size, len(self.memory))) # type: ignore
 
         states = np.array([transition[0] for transition in batch])
         actions = np.array([transition[1] for transition in batch])
