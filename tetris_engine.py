@@ -58,6 +58,9 @@ class tEngine:
         self.tick_rate = 1 / self.level  # seconds between automatic piece drops
         self.cleared = 0 # Lines cleared this turn
         self.total_cleared = 0  # Total lines cleared since last level
+        self.holes = 0
+        self.bumpiness = 0
+        self.heights = 0
 
     ### Piece Movement Functions
 
@@ -175,7 +178,7 @@ class tEngine:
         return reward
     
     def get_bumpiness_heights(self): # called in get_state()
-        """Calculates the bumpiness and heights of each column."""
+        """Calculates the bumpiness and hewlights of each column."""
         bumpiness = 0
         column_heights = [0] * BOARD_WIDTH
 
@@ -190,15 +193,15 @@ class tEngine:
     
     def get_holes(self): # called in get_state()
         """Counts every empty cell that 'has a roof'."""
-        holes = 0
+        self.holes = 0
         for x in range(BOARD_WIDTH):
             found_block = False
             for y in range(BOARD_HEIGHT):
                 if self.board[y][x] != 0:
                     found_block = True
                 elif found_block and self.board[y][x] == 0:
-                    holes += 1
-        return holes
+                    self.holes += 1
+        return self.holes
     
     def increase_level(self): # called in step()
         """Increases the level and thus the speed and difficulty of the game every 10 lines cleared."""
@@ -211,7 +214,7 @@ class tEngine:
     def get_state(self): # called in step()
         """Returns an array with the lines cleared this turn, holes countes, bumpiness and heights of each column."""
         self.bumpiness, self.heights = self.get_bumpiness_heights()
-        self.holes = self.get_holes()
+        self.get_holes()
         return np.array([self.cleared, self.holes, self.bumpiness, self.heights])
 
     def get_possible_states(self): # Only relevant for the AI

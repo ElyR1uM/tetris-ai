@@ -8,9 +8,11 @@ from collections import deque
 import numpy as np
 import random
 import sys
+import pickle
+import os
 
 class Agent:
-    def __init__(self, state_size):
+    def __init__(self, state_size, model_path=None):
         self.state_size = state_size
         self.memory = deque(maxlen=30000)
         self.discount = 0.95
@@ -23,7 +25,13 @@ class Agent:
         self.replay_start = 3000
         self.epochs = 1
 
-        self.model = self.build_model()
+        if model_path and os.path.exists(model_path):
+            print(f"Loading model from {model_path}")
+            self.model = load_model(model_path)
+            self.load_training_state(model_path.replace('.h5', '_state.pkl'))
+        else:
+            print("No model found, building a new one.")
+            self.model = self.build_model()
 
     def build_model(self):
         model = keras.Sequential([
@@ -44,22 +52,52 @@ class Agent:
         best = None
 
         if random.random() <= self.epsilon:
-            return random.choice(state)
+            return random.choice(list(state))
         else:
             for s in state:
-                value = self.model.predict(np.array([s]), verbose=0)[0][0]
+                value = self.model.predict(np.array([s]), verbose=0)[0][0] # type: ignore
                 if value > max_value:
                     max_value = value
                     best = s
 
         return best
     
+    def save_model(self, filepath):
+        """Saves the model and training state"""
+        # Save the Network
+        self.model.save(filepath) # type: ignore
+
+        state_filepath = filepath.replace('.h5', '_state.pkl')
+        training_state = {
+            'epsilon': self.epsilon,
+            'memory': list(self.memory)
+        }
+        with open(state_filepath, 'wb') as f:
+            pickle.dump(training_state, f)
+
+        print(f"Model saved to {filepath}")
+        print(f"Training state saved to {state_filepath}")
+
+    def load_training_state(self, state_filepath):
+        """Loads epsilon, memory from a file"""
+        if os.path.exists(state_filepath):
+            try:
+                with open(state_filepath, 'rb') as f:
+                    training_state = pickle.load(f)
+                    
+                self.epsilon = training_state.get('epsilon', self.epsilon)
+                saved_memory = training_state.get('memory', [])
+                self.memory = deque(saved_memory, maxlen=30000)
+                print(f"Training state loaded from {state_filepath}")
+            except Exception as e:
+                print(f"Error loading training state: {e}")
+    
     def replay(self):
         if len(self.memory) > self.replay_start:
             batch = random.sample(self.memory, self.batch_size)
 
             next_states = np.array([s[1] for s in batch])
-            next_qvalue = np.array([s[0] for s in self.model.predict(next_states)])
+            next_qvalue = np.array([s[0] for s in self.model.predict(next_states)]) # type: ignore
 
             x = []
             y = []
@@ -75,4 +113,4 @@ class Agent:
                 x.append(state)
                 y.append(new_q)
 
-            self.model.fit(np.array(x), np.array(y), batch_size=self.batch_size, epochs=self.epochs, verbose=0)
+            self.model.fit(np.array(x), np.array(y), batch_size=self.batch_size, epochs=self.epochs, verbose=0) # type: ignore
