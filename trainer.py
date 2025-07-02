@@ -110,7 +110,8 @@ for episode in range(start_episode, max_episodes):
         current_state = next_state
 
         if episode < agent.epsilon_end_episode:
-            agent.epsilon = (episode / agent.epsilon_end_episode) * (1.0 - agent.epsilon_min)
+            progress = episode / agent.epsilon_end_episode
+            agent.epsilon = agent.epsilon_min + (1.0 - agent.epsilon_min) * (1.0 - progress)
         else:
             agent.epsilon = agent.epsilon_min
 
