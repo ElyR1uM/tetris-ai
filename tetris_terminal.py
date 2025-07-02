@@ -7,22 +7,34 @@ from tetris_engine import tEngine
 
 # Map piece types to colors
 PIECE_COLORS = {
-    'I': curses.COLOR_CYAN,
-    'O': curses.COLOR_YELLOW,
-    'T': curses.COLOR_MAGENTA,
-    'S': curses.COLOR_GREEN,
-    'Z': curses.COLOR_RED,
-    'J': curses.COLOR_BLUE,
-    'L': 208
+    # We start at 1 because curses color pairs start at 1 and 0 counts as background
+    1: curses.COLOR_CYAN,
+    2: curses.COLOR_YELLOW,
+    3: curses.COLOR_MAGENTA,
+    4: curses.COLOR_GREEN,
+    5: curses.COLOR_RED,
+    6: curses.COLOR_BLUE,
+    7: 208
+}
+
+PIECE_TYPE_TO_ID = {
+    "I": 1,
+    "O": 2,
+    "T": 3,
+    "S": 4,
+    "Z": 5,
+    "J": 6,
+    "L": 7
 }
 
 game_score = 0
 
 def init_colors():
     """Sets the color for each piece."""
+
     curses.start_color()
     curses.use_default_colors() # Ensures the color scheme fits with the terminal's theme
-    for i, (ptype, color) in enumerate(PIECE_COLORS.items(), start=1):
+    for i, (piece_id, color) in enumerate(PIECE_COLORS.items(), start=1):
         curses.init_pair(i, color, -1)  # foreground color, default background
 
 
@@ -40,12 +52,13 @@ def get_color_pair(engine, x, y):
                 px = engine.piece_x + piece_x
                 py = engine.piece_y + piece_y
                 if px == x and py == y:
-                    return curses.color_pair(list(PIECE_COLORS.keys()).index(engine.piece_type) + 1)
-    
-    # For locked pieces
+                    # Convert piece type string to ID, then get color pair
+                    piece_id = PIECE_TYPE_TO_ID.get(engine.piece_type, 0)
+                    return curses.color_pair(piece_id)
+    # For locked pieces (these should now be numeric IDs)
     if engine.board[y][x]:
-        piece_type = engine.board[y][x]
-        return curses.color_pair(list(PIECE_COLORS.keys()).index(piece_type) + 1)
+        piece_id = engine.board[y][x]
+        return curses.color_pair(piece_id)
     
     return 0
 

@@ -108,13 +108,16 @@ for episode in range(start_episode, max_episodes):
 
         current_state = next_state
 
-        if agent.epsilon > agent.epsilon_min:
-            agent.epsilon -= agent.epsilon_decay
+        if episode < agent.epsilon_end_episode:
+            agent.epsilon = (episode / agent.epsilon_end_episode) * (1.0 - agent.epsilon_min)
+        else:
+            agent.epsilon = agent.epsilon_min
 
-        if steps % agent.target_update_freq == 0:
+        if episode % 50 == 0:
             agent.update_target_model()
 
-        if steps % 4 == 0 and len(agent.memory) >= agent.replay_start:
+        replay_freq = 4 if len(agent.memory) >= 10000 else 10
+        if steps % replay_freq == 0 and len(agent.memory) >= agent.replay_start:
             agent.replay()
         
         steps += 1

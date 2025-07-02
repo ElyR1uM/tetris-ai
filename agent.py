@@ -26,22 +26,21 @@ class Agent:
         self.epsilon_decay = (self.epsilon - self.epsilon_min) / self.epsilon_end_episode
 
         self.batch_size = 64
-        self.replay_start = 500
+        self.replay_start = 1000
         self.epochs = 1
-        self.target_update_freq = 100
         self.steps = 0
 
         if model_path and os.path.exists(model_path):
             print(f"Loading model from {model_path}")
             self.model = load_model(model_path)
-            self.model.compile(loss='huber', optimizer=keras.optimizers.Adam(learning_rate=0.001)) # type: ignore
+            self.model.compile(loss='huber', optimizer=keras.optimizers.Adam(learning_rate=0.001, clipnorm=1.0)) # type: ignore
             target_model_path = model_path.replace('.h5', '_target.h5')
             if os.path.exists(target_model_path):
                 self.target_model = load_model(target_model_path)
             else:
                 self.target_model = load_model(model_path)  # Fallback to the main model if target model doesn't exist
             
-            self.target_model.compile(loss='huber', optimizer=keras.optimizers.Adam(learning_rate=0.001)) # type: ignore
+            self.target_model.compile(loss='huber', optimizer=keras.optimizers.Adam(learning_rate=0.001, clipnorm=1.0)) # type: ignore
             
             self.load_training_state(model_path.replace('.h5', '_state.pkl'))
         else:
@@ -58,7 +57,7 @@ class Agent:
             Dense(1, activation='linear')
         ])
 
-        model.compile(loss='huber', optimizer=keras.optimizers.Adam(learning_rate=0.001)) # type: ignore
+        model.compile(loss='huber', optimizer=keras.optimizers.Adam(learning_rate=0.001, clipnorm=1.0)) # type: ignore
         return model
     
     def update_target_model(self):

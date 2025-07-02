@@ -41,6 +41,16 @@ TETROMINO_SHAPES  = {
           [1, 1, 1]]
 }
 
+PIECE_IDS = {
+    "I": 1,
+    "O": 2,
+    "T": 3,
+    "S": 4,
+    "Z": 5,
+    "J": 6,
+    "L": 7
+}
+
 # Engine to run Tetris
 class tEngine: 
     def __init__(self):
@@ -126,8 +136,8 @@ class tEngine:
                     board_y = self.piece_y + y
                     if 0 <= board_x < BOARD_WIDTH and 0 <= board_y < BOARD_HEIGHT:
                         # Store the piece type instead of just True
-                        self.board[board_y][board_x] = self.piece_type # type: ignore
-                    #self.board[self.piece_y + y][self.piece_x + x] = 1
+                        self.board[board_y][board_x] = PIECE_IDS[self.piece_type]
+
 
     def drop(self): # called in step()
         """Drops current piece by 1. Called every tick."""
@@ -170,11 +180,15 @@ class tEngine:
     def get_reward(self): # called in step()
         """Calculates the reward for the current turn with the formula:\n
         Lines_cleared^2 * Board_width + 1"""
+        if self.game_over:
+            reward = -10  # Negative reward for game over
+
         reward = 0
-        if not self.game_over:
-            reward += self.cleared ** 2 * BOARD_WIDTH + 1
-        else:
-            reward -= 5
+        if self.cleared > 0:
+            reward += [0, 10, 25, 50, 100][self.cleared]
+
+        reward -= self.holes * 2  # Negative reward for holes
+        reward -= self.bumpiness * 0.5  # Negative reward for bumpiness
         return reward
     
     def get_bumpiness_heights(self): # called in get_state()
@@ -189,6 +203,8 @@ class tEngine:
                     break
         for i in range(1, len(column_heights)):
             bumpiness += abs(column_heights[i] - column_heights[i - 1])
+            self.bumpiness = bumpiness
+            self.heights = sum(column_heights)
         return bumpiness, sum(column_heights)
     
     def get_holes(self): # called in get_state()
@@ -213,9 +229,17 @@ class tEngine:
 
     def get_state(self): # called in step()
         """Returns an array with the lines cleared this turn, holes countes, bumpiness and heights of each column."""
-        self.bumpiness, self.heights = self.get_bumpiness_heights()
-        self.get_holes()
-        return np.array([self.cleared, self.holes, self.bumpiness, self.heights])
+        board_flat = np.array(self.board).flatten()
+
+        # add aggregate features
+        bumpiness, heights = self.get_bumpiness_heights()
+        holes = self.get_holes()
+
+        state = np.concatenate([
+            board_flat, 
+            [bumpiness, heights, holes, self.level]])
+
+        return state
 
     def get_possible_states(self): # Only relevant for the AI
         """Returns a dictionary with all possible states for the current piece."""
