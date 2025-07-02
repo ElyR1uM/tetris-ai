@@ -181,14 +181,15 @@ class tEngine:
         """Calculates the reward for the current turn with the formula:\n
         Lines_cleared^2 * Board_width + 1"""
         if self.game_over:
-            reward = -10  # Negative reward for game over
+            reward = -50  # Penalty for game over
 
         reward = 0
         if self.cleared > 0:
             reward += [0, 10, 25, 50, 100][self.cleared]
 
-        reward -= self.holes * 2  # Negative reward for holes
-        reward -= self.bumpiness * 0.5  # Negative reward for bumpiness
+        reward -= self.holes  # Penalty for holes in placed stacks
+        reward -= self.bumpiness  # Penalty for too rough surfaces
+        reward -= self.heights  # Penalty for high columns
         return reward
     
     def get_bumpiness_heights(self): # called in get_state()

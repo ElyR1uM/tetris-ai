@@ -3,6 +3,8 @@
 import curses
 import time
 import tetris_engine
+from pygame import mixer
+import threading
 from tetris_engine import tEngine
 
 # Map piece types to colors
@@ -100,8 +102,18 @@ def draw_board(stdscr, engine):
     stdscr.addstr(len(board) + 3, 0, f"Level: {engine.level}")
     stdscr.addstr(len(board) + 4, 0, f"Holes: {engine.holes}")
     stdscr.addstr(len(board) + 5, 0, f"Bumpiness: {engine.bumpiness}")
-    stdscr.addstr(len(board) + 6, 0, f"Height: {engine.heights}")
+    stdscr.addstr(len(board) + 6, 0, f"Heights: {engine.heights}")
     stdscr.refresh()
+
+def play_soundtrack():
+    """Plays the soundtrack in a separate thread. Only works locally."""
+    try:
+        mixer.init()
+        mixer.music.load("soundtrack.wav")
+        mixer.music.play(-1)  # Loop indefinitely
+    except Exception as e:
+        # Github Codespaces don't have an audio playback device
+        return
 
 def main(stdscr):
     # Initialize the curses screen
@@ -172,4 +184,6 @@ def main(stdscr):
             return
 
 if __name__ == "__main__":
+    soundtrack_thread = threading.Thread(target=play_soundtrack, daemon=True)
+    soundtrack_thread.start()
     curses.wrapper(main)
