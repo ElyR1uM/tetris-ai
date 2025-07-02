@@ -52,7 +52,8 @@ def plot_progress(episodes, rewards):
     print(f"Progress plot saved to model/q_graph.png")
 
 env = tEngine()
-agent = Agent(4)
+state_size = 10 * 20 + 4  # 10 columns, 20 rows, plus 4 additional features (holes, bumpiness, heights, etc.)
+agent = Agent(state_size)
 
 max_steps = 50000
 max_episodes = 3000
