@@ -3,6 +3,7 @@
 from tetris_engine import tEngine
 from agent import Agent
 from datetime import datetime
+import pickle
 import json
 import os
 import matplotlib.pyplot as plt # type: ignore
@@ -11,7 +12,7 @@ import numpy as np # type: ignore
 
 # Config
 MODEL_SAVE_PATH = "model/model.h5"
-TRAINING_STATE_PATH = "model/training_state.pkl"
+PROGRESS_PATH = "model/progress.json"
 SAVE_INTERVAL = 100
 PLOT_INTERVAL = 100
 
@@ -56,12 +57,12 @@ agent = Agent(4)
 max_steps = 50000
 max_episodes = 3000
 
-episodes, rewards = load_progress(TRAINING_STATE_PATH)
+episodes, rewards = load_progress(PROGRESS_PATH)
 start_episode = len(episodes)
 
 print(f"Starting training from episode {start_episode + 1}/{max_episodes}...")
 
-for episode in range(max_episodes):
+for episode in range(start_episode, max_episodes):
     env.reset()
     current_state = env.get_state()
     done = False
@@ -128,9 +129,9 @@ for episode in range(max_episodes):
 
     if (episode) % SAVE_INTERVAL == 0:
         agent.save_model(MODEL_SAVE_PATH)
-        save_progress(episodes, rewards, TRAINING_STATE_PATH)
+        save_progress(episodes, rewards, PROGRESS_PATH)
     
-    if (episode) % PLOT_INTERVAL == 0:
+    if (episode + 1) % PLOT_INTERVAL == 0:
         plot_progress(episodes, rewards)
 
     if episode % 100 == 0:

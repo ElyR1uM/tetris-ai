@@ -172,7 +172,7 @@ class tEngine:
         Lines_cleared^2 * Board_width + 1"""
         reward = 0
         if not self.game_over:
-            reward += self.cleared ** 2 * BOARD_WIDTH
+            reward += self.cleared ** 2 * BOARD_WIDTH + 1
         else:
             reward -= 5
         return reward

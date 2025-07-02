@@ -1,6 +1,9 @@
 """Agent to play tetris_engine.py"""
 
 # For these imports to work you want to have a venv with Python 3.10 (See README)
+import tensorflow as tf # type: ignore
+tf.config.run_functions_eagerly(True)
+
 import keras # type: ignore
 from keras import initializers # type: ignore
 from keras.models import Sequential, load_model # type: ignore
@@ -13,7 +16,7 @@ import pickle
 import os
 
 class Agent:
-    def __init__(self, state_size, model_path=None):
+    def __init__(self, state_size, model_path="model/model.h5"):
         self.state_size = state_size
         self.memory = deque(maxlen=50000)
         self.discount = 0.95
@@ -23,7 +26,7 @@ class Agent:
         self.epsilon_decay = (self.epsilon - self.epsilon_min) / self.epsilon_end_episode
 
         self.batch_size = 64
-        self.replay_start = 1000
+        self.replay_start = 500
         self.epochs = 1
         self.target_update_freq = 100
         self.steps = 0
@@ -31,7 +34,15 @@ class Agent:
         if model_path and os.path.exists(model_path):
             print(f"Loading model from {model_path}")
             self.model = load_model(model_path)
-            self.target_model = load_model(model_path)
+            self.model.compile(loss='huber', optimizer=keras.optimizers.Adam(learning_rate=0.001)) # type: ignore
+            target_model_path = model_path.replace('.h5', '_target.h5')
+            if os.path.exists(target_model_path):
+                self.target_model = load_model(target_model_path)
+            else:
+                self.target_model = load_model(model_path)  # Fallback to the main model if target model doesn't exist
+            
+            self.target_model.compile(loss='huber', optimizer=keras.optimizers.Adam(learning_rate=0.001)) # type: ignore
+            
             self.load_training_state(model_path.replace('.h5', '_state.pkl'))
         else:
             print("No model found, building a new one.")
@@ -96,7 +107,7 @@ class Agent:
         print(f"Training state saved to {state_filepath}")
 
     def load_training_state(self, state_filepath):
-        """Loads epsilon, memory from a file"""
+        """Loads epsilon, steps, and memory from a file"""
         if os.path.exists(state_filepath):
             try:
                 with open(state_filepath, 'rb') as f:
@@ -115,14 +126,20 @@ class Agent:
             return
         batch = random.sample(self.memory, min(self.batch_size, len(self.memory))) # type: ignore
 
+        print(f"Replaying {len(batch)} transitions from memory.")
+
         states = np.array([transition[0] for transition in batch])
         next_states = np.array([transition[1] for transition in batch])
         rewards = np.array([transition[2] for transition in batch])
         dones = np.array([transition[3] for transition in batch])
 
-        current_qvalue = self.model.predict(states, verbose=0) # type: ignore
+        current_qvalue = self.model.predict(states, verbose=0).numpy() if hasattr(self.model.predict(states, verbose=0), 'numpy') else np.array(self.model.predict(states, verbose=0))
 
         next_qvalue = self.target_model.predict(next_states, verbose=0)
+        if hasattr(next_qvalue, 'numpy'):
+            next_qvalue = next_qvalue.numpy()
+        else:
+            next_qvalue = np.array(next_qvalue)
 
         target_qvalue = current_qvalue.copy()
 
