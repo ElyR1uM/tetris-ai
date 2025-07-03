@@ -178,8 +178,7 @@ class tEngine:
         self.score += switcher.get(self.cleared, 0) * self.level  # Multiply the score by the level
 
     def get_reward(self): # called in step()
-        """Calculates the reward for the current turn with the formula:\n
-        Lines_cleared^2 * Board_width + 1"""
+        """Calculates the reward for the current turn"""
         if self.game_over:
             reward = -50  # Penalty for game over
 
